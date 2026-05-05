@@ -138,11 +138,12 @@ export default async function PreorderPage({
           <div
             className="bg-gradient-to-br from-red-600 via-zinc-900 to-amber-500 p-6"
             style={
-              config.productImageUrl
+              config.coverImageUrl
                 ? {
-                    backgroundImage: `linear-gradient(rgba(9,9,11,0.2), rgba(9,9,11,0.75)), url("${config.productImageUrl}")`,
+                    backgroundImage: `linear-gradient(rgba(9,9,11,0.1), rgba(9,9,11,0.45)), url("${config.coverImageUrl}")`,
                     backgroundPosition: "center",
-                    backgroundSize: "cover",
+                    backgroundSize: "contain",
+                    backgroundRepeat: "no-repeat",
                   }
                 : undefined
             }
@@ -177,7 +178,19 @@ export default async function PreorderPage({
               href={`/preorder?team=${product.key}#preorder-form`}
               className="group overflow-hidden rounded-2xl border border-white/10 bg-zinc-900 transition hover:-translate-y-0.5 hover:border-red-300/70 hover:bg-zinc-800"
             >
-              <div className={`h-24 bg-gradient-to-br ${product.accent}`} />
+              <div
+                className={`h-36 bg-gradient-to-br ${product.accent}`}
+                style={
+                  config.teamImageUrls[product.key]
+                    ? {
+                        backgroundImage: `linear-gradient(rgba(9,9,11,0.05), rgba(9,9,11,0.35)), url("${config.teamImageUrls[product.key]}")`,
+                        backgroundPosition: "center",
+                        backgroundSize: "contain",
+                        backgroundRepeat: "no-repeat",
+                      }
+                    : undefined
+                }
+              />
               <div className="p-5">
                 <p className="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-400">
                   {product.shortName}
