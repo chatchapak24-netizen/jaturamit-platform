@@ -132,33 +132,28 @@ export default function PreorderForm({
       return setErrorText("กรุณากรอกที่อยู่จัดส่ง");
     }
 
-    const payload = {
-      campaign_id: campaign.id,
-      product_id: selectedProduct.id,
-      full_name: form.full_name.trim(),
-      phone: form.phone.trim(),
-      team: selectedTeam.slug,
-      size: selectedProduct.requires_size ? form.size : null,
-      shirt_name: selectedProduct.allows_custom_name
-        ? form.shirt_name.trim()
-        : "",
-      shirt_number: selectedProduct.allows_custom_number
-        ? form.shirt_number.trim()
-        : "",
-      quantity: form.quantity,
-      delivery_method: form.delivery_method,
-      address: form.delivery_method === "shipping" ? form.address.trim() : null,
-      note: form.note.trim() || null,
-      payment_note: form.payment_note.trim() || null,
-      // Compatibility path for the existing preorders insert. A future PR should
-      // move order creation into an RPC so the database owns price calculation.
-      unit_price: selectedProduct.price,
-    };
-
     setSubmitting(true);
 
     try {
-      const { error } = await supabaseBrowser.from("preorders").insert(payload);
+      const { error } = await supabaseBrowser.rpc("create_preorder_order", {
+        p_campaign_id: campaign.id,
+        p_product_id: selectedProduct.id,
+        p_full_name: form.full_name.trim(),
+        p_phone: form.phone.trim(),
+        p_size: selectedProduct.requires_size ? form.size : null,
+        p_shirt_name: selectedProduct.allows_custom_name
+          ? form.shirt_name.trim()
+          : "",
+        p_shirt_number: selectedProduct.allows_custom_number
+          ? form.shirt_number.trim()
+          : "",
+        p_quantity: form.quantity,
+        p_delivery_method: form.delivery_method,
+        p_address:
+          form.delivery_method === "shipping" ? form.address.trim() : null,
+        p_note: form.note.trim() || null,
+        p_payment_note: form.payment_note.trim() || null,
+      });
 
       if (error) {
         setErrorText("ไม่สามารถส่งคำสั่งซื้อได้ กรุณาตรวจสอบข้อมูลและลองใหม่");

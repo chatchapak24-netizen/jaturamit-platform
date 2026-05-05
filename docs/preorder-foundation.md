@@ -32,6 +32,8 @@ The migration is additive and uses upserts for seed data so it can be rerun with
 
 Public users can read only active campaigns, active teams, and active products. Public users cannot read `preorders` or `preorder_order_items`.
 
+Public order creation should go through `public.create_preorder_order(...)`. The function validates the active campaign/product, looks up the current product price in the database, inserts the compatibility row into `public.preorders`, and writes a snapshot row to `public.preorder_order_items`.
+
 Active admins are detected with the existing pattern:
 
 ```sql
