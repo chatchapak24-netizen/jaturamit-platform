@@ -1,4 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
+import {
+  DEFAULT_PREORDER_CONFIG,
+  normalizePreorderConfig,
+} from "@/lib/preorder-config";
 
 export const dynamic = "force-dynamic";
 
@@ -10,7 +14,7 @@ export async function GET() {
 
   if (!supabaseUrl || !supabaseKey) {
     return Response.json(
-      { customFieldsEnabled: true },
+      DEFAULT_PREORDER_CONFIG,
       { headers: { "Cache-Control": "no-store" } },
     );
   }
@@ -24,19 +28,27 @@ export async function GET() {
 
   const { data, error } = await supabase
     .from("site_settings")
-    .select("value")
-    .eq("key", "preorder_custom_fields_enabled")
-    .maybeSingle();
+    .select("key, value")
+    .in("key", ["preorder_config", "preorder_custom_fields_enabled"]);
 
   if (error) {
     return Response.json(
-      { customFieldsEnabled: true },
+      DEFAULT_PREORDER_CONFIG,
       { headers: { "Cache-Control": "no-store" } },
     );
   }
 
+  const preorderConfig = data?.find((item) => item.key === "preorder_config");
+  const legacyCustomFields = data?.find(
+    (item) => item.key === "preorder_custom_fields_enabled",
+  );
+  const config = normalizePreorderConfig(
+    preorderConfig?.value,
+    legacyCustomFields?.value !== "false",
+  );
+
   return Response.json(
-    { customFieldsEnabled: data?.value !== "false" },
+    config,
     { headers: { "Cache-Control": "no-store" } },
   );
 }

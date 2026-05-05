@@ -1,4 +1,9 @@
+import { createClient } from "@supabase/supabase-js";
 import PreorderForm, { type TeamValue } from "@/components/preorder/PreorderForm";
+import {
+  DEFAULT_PREORDER_CONFIG,
+  normalizePreorderConfig,
+} from "@/lib/preorder-config";
 
 const PRODUCTS: Array<{
   key: TeamValue;
@@ -54,6 +59,42 @@ function isTeamValue(value: unknown): value is TeamValue {
   return PRODUCTS.some((product) => product.key === value);
 }
 
+async function getPreorderConfig() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey =
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl || !supabaseKey) {
+    return DEFAULT_PREORDER_CONFIG;
+  }
+
+  const supabase = createClient(supabaseUrl, supabaseKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+  });
+  const { data, error } = await supabase
+    .from("site_settings")
+    .select("key, value")
+    .in("key", ["preorder_config", "preorder_custom_fields_enabled"]);
+
+  if (error) {
+    return DEFAULT_PREORDER_CONFIG;
+  }
+
+  const preorderConfig = data?.find((item) => item.key === "preorder_config");
+  const legacyCustomFields = data?.find(
+    (item) => item.key === "preorder_custom_fields_enabled",
+  );
+
+  return normalizePreorderConfig(
+    preorderConfig?.value,
+    legacyCustomFields?.value !== "false",
+  );
+}
+
 export default async function PreorderPage({
   searchParams,
 }: {
@@ -64,6 +105,7 @@ export default async function PreorderPage({
   const selectedTeam: TeamValue = isTeamValue(requestedTeam)
     ? requestedTeam
     : "photha";
+  const config = await getPreorderConfig();
 
   return (
     <main className="min-h-screen bg-zinc-950 text-white">
@@ -81,19 +123,30 @@ export default async function PreorderPage({
           </p>
           <div className="mt-6 flex flex-wrap gap-3 text-sm font-bold">
             <span className="rounded-full border border-red-400/40 bg-red-500/10 px-4 py-2 text-red-100">
-              ราคา 390 บาท
+              ราคา {config.unitPrice} บาท
             </span>
             <span className="rounded-full border border-white/15 bg-white/10 px-4 py-2 text-zinc-100">
               ผลิตตามออเดอร์
             </span>
             <span className="rounded-full border border-white/15 bg-white/10 px-4 py-2 text-zinc-100">
-              ชื่อและเบอร์ฟรี
+              {config.customFieldsEnabled ? "ชื่อและเบอร์ฟรี" : "ไม่ต้องกรอกชื่อและเบอร์"}
             </span>
           </div>
         </div>
 
         <div className="overflow-hidden rounded-[28px] border border-white/10 bg-zinc-900 shadow-2xl shadow-red-950/30">
-          <div className="bg-gradient-to-br from-red-600 via-zinc-900 to-amber-500 p-6">
+          <div
+            className="bg-gradient-to-br from-red-600 via-zinc-900 to-amber-500 p-6"
+            style={
+              config.productImageUrl
+                ? {
+                    backgroundImage: `linear-gradient(rgba(9,9,11,0.2), rgba(9,9,11,0.75)), url("${config.productImageUrl}")`,
+                    backgroundPosition: "center",
+                    backgroundSize: "cover",
+                  }
+                : undefined
+            }
+          >
             <div className="aspect-[4/3] rounded-2xl border border-white/20 bg-black/25 p-5 backdrop-blur-sm">
               <div className="flex h-full flex-col justify-between rounded-xl border border-white/20 bg-zinc-950/75 p-5">
                 <div>
@@ -105,7 +158,9 @@ export default async function PreorderPage({
                 <div>
                   <div className="h-2 w-24 rounded-full bg-red-500" />
                   <p className="mt-3 text-sm font-semibold text-zinc-200">
-                    Custom name and number
+                    {config.customFieldsEnabled
+                      ? "Custom name and number"
+                      : "Team preorder shirt"}
                   </p>
                 </div>
               </div>
@@ -132,7 +187,7 @@ export default async function PreorderPage({
                 </h2>
                 <div className="mt-4 flex items-center justify-between gap-3">
                   <span className="text-sm font-black text-red-200">
-                    390 บาท
+                    {config.unitPrice} บาท
                   </span>
                   <span className="rounded-full border border-white/15 px-3 py-1 text-xs font-bold text-zinc-200 group-hover:border-red-300/60 group-hover:text-red-100">
                     เลือกทีม
@@ -149,7 +204,11 @@ export default async function PreorderPage({
           <h2 className="text-xl font-black">รายละเอียดสินค้า</h2>
           <ul className="mt-4 space-y-3 text-sm leading-6 text-zinc-300">
             <li>เสื้อผลิตตามออเดอร์ ไม่มีสต็อกพร้อมส่ง</li>
-            <li>ใส่ชื่อและเบอร์ฟรี</li>
+            <li>
+              {config.customFieldsEnabled
+                ? "ใส่ชื่อและเบอร์ฟรี"
+                : "รอบนี้ไม่ต้องกรอกชื่อและเบอร์หลังเสื้อ"}
+            </li>
             <li>เหมาะสำหรับใส่เชียร์ ใส่ซ้อม หรือสะสม</li>
             <li>ผลิตโดย ลิงชิงบอล สปอร์ต</li>
           </ul>
@@ -198,7 +257,11 @@ export default async function PreorderPage({
         id="preorder-form"
         className="mx-auto max-w-6xl scroll-mt-24 px-4 pb-14 md:px-6"
       >
-        <PreorderForm key={selectedTeam} initialTeam={selectedTeam} />
+        <PreorderForm
+          key={selectedTeam}
+          initialTeam={selectedTeam}
+          initialConfig={config}
+        />
       </section>
     </main>
   );
