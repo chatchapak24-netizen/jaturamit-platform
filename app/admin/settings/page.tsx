@@ -44,8 +44,6 @@ export default function AdminSettingsPage() {
 
   const [seasons, setSeasons] = useState<Season[]>([]);
   const [homepageSeasonId, setHomepageSeasonId] = useState("");
-  const [preorderCustomFieldsEnabled, setPreorderCustomFieldsEnabled] =
-    useState(true);
 
   const [message, setMessage] = useState("");
   const [errorText, setErrorText] = useState("");
@@ -75,8 +73,7 @@ export default function AdminSettingsPage() {
   }
 
   async function loadData() {
-    const [seasonsResult, homepageSettingResult, preorderSettingResult] =
-      await Promise.all([
+    const [seasonsResult, settingResult] = await Promise.all([
       supabaseBrowser
         .from("seasons")
         .select(`
@@ -94,12 +91,6 @@ export default function AdminSettingsPage() {
         .select("key, value")
         .eq("key", "homepage_season_id")
         .single(),
-
-      supabaseBrowser
-        .from("site_settings")
-        .select("key, value")
-        .eq("key", "preorder_custom_fields_enabled")
-        .maybeSingle(),
     ]);
 
     if (seasonsResult.error) {
@@ -116,8 +107,8 @@ export default function AdminSettingsPage() {
 
     setSeasons(loadedSeasons);
 
-    if (homepageSettingResult.data?.value) {
-      setHomepageSeasonId(homepageSettingResult.data.value);
+    if (settingResult.data?.value) {
+      setHomepageSeasonId(settingResult.data.value);
     } else {
       const activeSeason =
         loadedSeasons.find((season) => season.status === "active") ||
@@ -128,11 +119,6 @@ export default function AdminSettingsPage() {
       }
     }
 
-    if (preorderSettingResult.data?.value) {
-      setPreorderCustomFieldsEnabled(
-        preorderSettingResult.data.value !== "false"
-      );
-    }
   }
 
   useEffect(() => {
@@ -160,20 +146,13 @@ export default function AdminSettingsPage() {
 
     setSaving(true);
 
-    const updatedAt = new Date().toISOString();
-
-    const { error } = await supabaseBrowser.from("site_settings").upsert([
-      {
+    const { error } = await supabaseBrowser
+      .from("site_settings")
+      .upsert({
         key: "homepage_season_id",
         value: homepageSeasonId,
-        updated_at: updatedAt,
-      },
-      {
-        key: "preorder_custom_fields_enabled",
-        value: preorderCustomFieldsEnabled ? "true" : "false",
-        updated_at: updatedAt,
-      },
-    ]);
+        updated_at: new Date().toISOString(),
+      });
 
     if (error) {
       setErrorText(error.message);
@@ -240,27 +219,6 @@ export default function AdminSettingsPage() {
               </option>
             ))}
           </select>
-        </div>
-
-        <div className="mt-6 rounded-2xl border border-white/10 bg-zinc-950 p-4">
-          <label className="flex items-start gap-3">
-            <input
-              type="checkbox"
-              checked={preorderCustomFieldsEnabled}
-              onChange={(event) =>
-                setPreorderCustomFieldsEnabled(event.target.checked)
-              }
-              className="mt-1 h-5 w-5 accent-red-600"
-            />
-            <span>
-              <span className="block font-bold text-white">
-                เปิดช่องชื่อบนเสื้อและเบอร์เสื้อในฟอร์มพรีออเดอร์
-              </span>
-              <span className="mt-1 block text-sm text-zinc-400">
-                ถ้าปิด ผู้สั่งซื้อจะไม่ต้องกรอกชื่อบนเสื้อและเบอร์เสื้อ
-              </span>
-            </span>
-          </label>
         </div>
 
         <button

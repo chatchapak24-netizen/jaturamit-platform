@@ -90,6 +90,15 @@ export default function AdminDashboardPage() {
     เลือกซีซั่นหลักที่จะแสดงบนหน้าแรก
   </p>
 </Link>
+<Link
+  href="/admin/preorder"
+  className="rounded-3xl border border-white/10 bg-zinc-900 p-6 hover:border-red-400/50"
+>
+  <h2 className="text-2xl font-black">ตั้งค่าพรีออเดอร์</h2>
+  <p className="mt-3 text-sm text-zinc-400">
+    เปิด/ปิดช่องชื่อบนเสื้อและเบอร์เสื้อในฟอร์มสั่งซื้อ
+  </p>
+</Link>
         <Link
   href="/admin/players"
   className="rounded-3xl border border-white/10 bg-zinc-900 p-6 hover:border-red-400/50"
