@@ -1,7 +1,7 @@
 "use client";
 
 import type { FormEvent, ReactNode } from "react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 
 const TEAM_OPTIONS = [
@@ -67,8 +67,30 @@ export default function PreorderForm({
   const [submitting, setSubmitting] = useState(false);
   const [errorText, setErrorText] = useState("");
   const [successText, setSuccessText] = useState("");
+  const [customFieldsEnabled, setCustomFieldsEnabled] = useState(true);
 
   const totalPreview = useMemo(() => form.quantity * UNIT_PRICE, [form.quantity]);
+
+  useEffect(() => {
+    async function loadCustomFieldSetting() {
+      try {
+        const response = await fetch("/api/preorder-settings", {
+          cache: "no-store",
+        });
+        const data = (await response.json()) as {
+          customFieldsEnabled?: boolean;
+        };
+
+        if (response.ok) {
+          setCustomFieldsEnabled(data.customFieldsEnabled !== false);
+        }
+      } catch {
+        setCustomFieldsEnabled(true);
+      }
+    }
+
+    loadCustomFieldSetting();
+  }, []);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -79,8 +101,12 @@ export default function PreorderForm({
     if (!form.phone.trim()) return setErrorText("กรุณากรอกเบอร์โทร");
     if (!form.team) return setErrorText("กรุณาเลือกทีม");
     if (!form.size) return setErrorText("กรุณาเลือกไซส์");
-    if (!form.shirt_name.trim()) return setErrorText("กรุณากรอกชื่อบนเสื้อ");
-    if (!form.shirt_number.trim()) return setErrorText("กรุณากรอกเบอร์เสื้อ");
+    if (customFieldsEnabled && !form.shirt_name.trim()) {
+      return setErrorText("กรุณากรอกชื่อบนเสื้อ");
+    }
+    if (customFieldsEnabled && !form.shirt_number.trim()) {
+      return setErrorText("กรุณากรอกเบอร์เสื้อ");
+    }
     if (!form.quantity || form.quantity <= 0) {
       return setErrorText("จำนวนต้องมากกว่า 0");
     }
@@ -94,8 +120,8 @@ export default function PreorderForm({
       phone: form.phone.trim(),
       team: form.team,
       size: form.size,
-      shirt_name: form.shirt_name.trim(),
-      shirt_number: form.shirt_number.trim(),
+      shirt_name: customFieldsEnabled ? form.shirt_name.trim() : "",
+      shirt_number: customFieldsEnabled ? form.shirt_number.trim() : "",
       quantity: form.quantity,
       delivery_method: form.delivery_method,
       address: form.delivery_method === "shipping" ? form.address.trim() : null,
@@ -198,28 +224,36 @@ export default function PreorderForm({
           </select>
         </Field>
 
-        <Field label="ชื่อบนเสื้อ" required>
-          <input
-            className={inputClass}
-            value={form.shirt_name}
-            onChange={(event) =>
-              setForm({ ...form, shirt_name: event.target.value })
-            }
-            required
-          />
-        </Field>
+        {customFieldsEnabled ? (
+          <>
+            <Field label="ชื่อบนเสื้อ" required>
+              <input
+                className={inputClass}
+                value={form.shirt_name}
+                onChange={(event) =>
+                  setForm({ ...form, shirt_name: event.target.value })
+                }
+                required
+              />
+            </Field>
 
-        <Field label="เบอร์เสื้อ" required>
-          <input
-            className={inputClass}
-            inputMode="numeric"
-            value={form.shirt_number}
-            onChange={(event) =>
-              setForm({ ...form, shirt_number: event.target.value })
-            }
-            required
-          />
-        </Field>
+            <Field label="เบอร์เสื้อ" required>
+              <input
+                className={inputClass}
+                inputMode="numeric"
+                value={form.shirt_number}
+                onChange={(event) =>
+                  setForm({ ...form, shirt_number: event.target.value })
+                }
+                required
+              />
+            </Field>
+          </>
+        ) : (
+          <div className="rounded-xl border border-white/10 bg-zinc-950 p-4 text-sm text-zinc-300 md:col-span-2">
+            รอบนี้ปิดการกรอกชื่อบนเสื้อและเบอร์เสื้อจากหลังบ้านแล้ว
+          </div>
+        )}
 
         <Field label="จำนวน" required>
           <input
