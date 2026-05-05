@@ -98,6 +98,52 @@ function formatMoney(value: number | null) {
   }).format(value || 0);
 }
 
+function csvCell(value: number | string | null) {
+  const text = String(value ?? "");
+
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
+function buildPreorderCsv(orders: PreorderOrder[]) {
+  const columns = [
+    "order_code",
+    "team",
+    "size",
+    "shirt_name",
+    "shirt_number",
+    "quantity",
+    "full_name",
+    "phone",
+    "delivery_method",
+    "address",
+    "status",
+    "note",
+    "payment_note",
+    "created_at",
+  ];
+  const rows = orders.map((order) => [
+    order.order_code,
+    teamLabel(order.team),
+    order.size,
+    order.shirt_name,
+    order.shirt_number,
+    order.quantity || 0,
+    order.full_name,
+    order.phone,
+    deliveryLabel(order.delivery_method),
+    order.address,
+    order.status || "pending",
+    order.note,
+    order.payment_note,
+    order.created_at,
+  ]);
+
+  return [
+    columns.map(csvCell).join(","),
+    ...rows.map((row) => row.map(csvCell).join(",")),
+  ].join("\r\n");
+}
+
 function statusClass(status: string | null) {
   switch (status) {
     case "paid":
@@ -243,6 +289,47 @@ export default function AdminPreordersPage() {
     return { teamCounts, totalAmount, totalOrders, totalQuantity };
   }, [filteredOrders]);
 
+  const productionSummary = useMemo(() => {
+    const rows = TEAM_OPTIONS.map((team) => {
+      const sizeCounts = SIZE_OPTIONS.map((size) => ({
+        size,
+        count: filteredOrders
+          .filter((order) => order.team === team.value && order.size === size)
+          .reduce((sum, order) => sum + (order.quantity || 0), 0),
+      }));
+      const total = sizeCounts.reduce((sum, item) => sum + item.count, 0);
+
+      return { ...team, sizeCounts, total };
+    });
+    const total = rows.reduce((sum, row) => sum + row.total, 0);
+
+    return { rows, total };
+  }, [filteredOrders]);
+
+  function exportCsv() {
+    setMessage("");
+    setErrorText("");
+
+    if (filteredOrders.length === 0) {
+      setErrorText("ไม่มีออเดอร์สำหรับ export จากตัวกรองปัจจุบัน");
+      return;
+    }
+
+    const csv = `\uFEFF${buildPreorderCsv(filteredOrders)}`;
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const timestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+
+    link.href = url;
+    link.download = `preorders-${timestamp}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    setMessage(`Export CSV ${filteredOrders.length} ออเดอร์เรียบร้อยแล้ว`);
+  }
+
   async function updateStatus(order: PreorderOrder, nextStatus: PreorderStatus) {
     if (!order.order_code) {
       setErrorText("ไม่พบ order_code สำหรับอัปเดตสถานะออเดอร์นี้");
@@ -311,6 +398,13 @@ export default function AdminPreordersPage() {
             กลับหลังบ้าน
           </Link>
           <button
+            onClick={exportCsv}
+            disabled={filteredOrders.length === 0}
+            className="rounded-2xl border border-emerald-400/40 bg-emerald-500/10 px-4 py-3 text-sm font-black text-emerald-100 hover:bg-emerald-500/20 disabled:opacity-60"
+          >
+            Export CSV
+          </button>
+          <button
             onClick={loadOrders}
             disabled={refreshing}
             className="rounded-2xl bg-red-600 px-4 py-3 text-sm font-black text-white hover:bg-red-500 disabled:opacity-60"
@@ -371,6 +465,56 @@ export default function AdminPreordersPage() {
               </div>
             ))}
           </div>
+        </div>
+      </section>
+
+      <section className="mt-6 rounded-2xl border border-white/10 bg-zinc-900 p-4">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">
+              Production Summary
+            </p>
+            <h2 className="mt-2 text-2xl font-black text-white">
+              สรุปจำนวนผลิตตามทีมและไซส์
+            </h2>
+          </div>
+          <p className="text-sm font-bold text-zinc-300">
+            รวมทั้งหมด {productionSummary.total} ตัว
+          </p>
+        </div>
+
+        <div className="mt-4 overflow-x-auto">
+          <table className="min-w-[720px] w-full text-left text-sm">
+            <thead className="border-b border-white/10 text-xs uppercase tracking-[0.15em] text-zinc-500">
+              <tr>
+                <th className="px-3 py-3">Team</th>
+                {SIZE_OPTIONS.map((size) => (
+                  <th key={size} className="px-3 py-3 text-center">
+                    {size}
+                  </th>
+                ))}
+                <th className="px-3 py-3 text-center">Total</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/10">
+              {productionSummary.rows.map((row) => (
+                <tr key={row.value}>
+                  <td className="px-3 py-3 font-bold text-white">{row.label}</td>
+                  {row.sizeCounts.map((item) => (
+                    <td
+                      key={`${row.value}-${item.size}`}
+                      className="px-3 py-3 text-center text-zinc-300"
+                    >
+                      {item.count}
+                    </td>
+                  ))}
+                  <td className="px-3 py-3 text-center font-black text-white">
+                    {row.total}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </section>
 
