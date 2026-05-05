@@ -108,6 +108,33 @@ export default function AdminDashboardPage() {
     ดูรายการสั่งซื้อ กรองออเดอร์ และอัปเดตสถานะงานพรีออเดอร์
   </p>
 </Link>
+<Link
+  href="/admin/preorder-campaigns"
+  className="rounded-3xl border border-white/10 bg-zinc-900 p-6 hover:border-red-400/50"
+>
+  <h2 className="text-2xl font-black">จัดการแคมเปญพรีออเดอร์</h2>
+  <p className="mt-3 text-sm text-zinc-400">
+    เพิ่มและแก้ไขรอบพรีออเดอร์ เงื่อนไข และข้อมูลการชำระเงิน
+  </p>
+</Link>
+<Link
+  href="/admin/preorder-teams"
+  className="rounded-3xl border border-white/10 bg-zinc-900 p-6 hover:border-red-400/50"
+>
+  <h2 className="text-2xl font-black">จัดการทีมพรีออเดอร์</h2>
+  <p className="mt-3 text-sm text-zinc-400">
+    จัดการโรงเรียน สี โลโก้ และสถานะทีมสำหรับสินค้า preorder
+  </p>
+</Link>
+<Link
+  href="/admin/preorder-products"
+  className="rounded-3xl border border-white/10 bg-zinc-900 p-6 hover:border-red-400/50"
+>
+  <h2 className="text-2xl font-black">จัดการสินค้าพรีออเดอร์</h2>
+  <p className="mt-3 text-sm text-zinc-400">
+    แก้สินค้า ราคา รูปภาพ และกติกาชื่อ/เบอร์หลังเสื้อ
+  </p>
+</Link>
         <Link
   href="/admin/players"
   className="rounded-3xl border border-white/10 bg-zinc-900 p-6 hover:border-red-400/50"
