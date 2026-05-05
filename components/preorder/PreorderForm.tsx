@@ -1,19 +1,9 @@
 "use client";
 
 import type { FormEvent, ReactNode } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
-import {
-  DEFAULT_PREORDER_CONFIG,
-  type PreorderConfig,
-} from "@/lib/preorder-config";
-
-const TEAM_OPTIONS = [
-  { value: "photha", label: "เสื้อจตุรมิตร - โพธา" },
-  { value: "benjamarachutit", label: "เสื้อจตุรมิตร - เบญจมราชูทิศ" },
-  { value: "daruna", label: "เสื้อจตุรมิตร - ดรุณาราชบุรี" },
-  { value: "sarasit", label: "เสื้อจตุรมิตร - สารสิทธิ์พิทยาลัย" },
-] as const;
+import type { PreorderCampaign, PreorderProduct } from "@/components/preorder/types";
 
 const SIZE_OPTIONS = ["S", "M", "L", "XL", "2XL", "3XL", "4XL", "5XL"] as const;
 
@@ -22,15 +12,14 @@ const DELIVERY_OPTIONS = [
   { value: "shipping", label: "จัดส่ง" },
 ] as const;
 
-export type TeamValue = (typeof TEAM_OPTIONS)[number]["value"];
 type SizeValue = (typeof SIZE_OPTIONS)[number];
 type DeliveryValue = (typeof DELIVERY_OPTIONS)[number]["value"];
 
 type FormState = {
   full_name: string;
   phone: string;
-  team: TeamValue;
-  size: SizeValue;
+  product_id: string;
+  size: SizeValue | "";
   shirt_name: string;
   shirt_number: string;
   quantity: number;
@@ -40,62 +29,70 @@ type FormState = {
   payment_note: string;
 };
 
-const initialState: FormState = {
-  full_name: "",
-  phone: "",
-  team: "photha",
-  size: "M",
-  shirt_name: "",
-  shirt_number: "",
-  quantity: 1,
-  delivery_method: "pickup",
-  address: "",
-  note: "",
-  payment_note: "",
-};
-
 const inputClass =
   "w-full rounded-xl border border-white/10 bg-zinc-950 px-4 py-3 text-white outline-none transition placeholder:text-zinc-600 focus:border-red-300";
 
+function createInitialState(productId: string): FormState {
+  return {
+    full_name: "",
+    phone: "",
+    product_id: productId,
+    size: "M",
+    shirt_name: "",
+    shirt_number: "",
+    quantity: 1,
+    delivery_method: "pickup",
+    address: "",
+    note: "",
+    payment_note: "",
+  };
+}
+
 export default function PreorderForm({
-  initialTeam = initialState.team,
-  initialConfig = DEFAULT_PREORDER_CONFIG,
+  campaign,
+  products,
+  initialProductId,
 }: {
-  initialTeam?: TeamValue;
-  initialConfig?: PreorderConfig;
+  campaign: PreorderCampaign;
+  products: PreorderProduct[];
+  initialProductId?: string;
 }) {
-  const [form, setForm] = useState<FormState>({
-    ...initialState,
-    team: initialTeam,
-  });
+  const firstProductId = products[0]?.id || "";
+  const safeInitialProductId =
+    products.some((product) => product.id === initialProductId)
+      ? initialProductId || firstProductId
+      : firstProductId;
+  const [form, setForm] = useState<FormState>(
+    createInitialState(safeInitialProductId),
+  );
   const [submitting, setSubmitting] = useState(false);
   const [errorText, setErrorText] = useState("");
   const [successText, setSuccessText] = useState("");
-  const [config, setConfig] = useState(initialConfig);
 
+  const selectedProduct = useMemo(
+    () => products.find((product) => product.id === form.product_id) || null,
+    [form.product_id, products],
+  );
+  const selectedTeam = selectedProduct?.team || null;
+  const centralProductDisabled = Boolean(selectedProduct && !selectedTeam);
   const totalPreview = useMemo(
-    () => form.quantity * config.unitPrice,
-    [config.unitPrice, form.quantity],
+    () => (selectedProduct?.price || 0) * form.quantity,
+    [form.quantity, selectedProduct?.price],
   );
 
-  useEffect(() => {
-    async function loadCustomFieldSetting() {
-      try {
-        const response = await fetch("/api/preorder-settings", {
-          cache: "no-store",
-        });
-        const data = (await response.json()) as PreorderConfig;
+  function updateSelectedProduct(productId: string) {
+    const nextProduct = products.find((product) => product.id === productId);
 
-        if (response.ok) {
-          setConfig(data);
-        }
-      } catch {
-        setConfig(initialConfig);
-      }
-    }
-
-    loadCustomFieldSetting();
-  }, [initialConfig]);
+    setForm({
+      ...form,
+      product_id: productId,
+      size: nextProduct?.requires_size ? form.size || "M" : "",
+      shirt_name: nextProduct?.allows_custom_name ? form.shirt_name : "",
+      shirt_number: nextProduct?.allows_custom_number ? form.shirt_number : "",
+    });
+    setErrorText("");
+    setSuccessText("");
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -104,45 +101,58 @@ export default function PreorderForm({
 
     if (!form.full_name.trim()) return setErrorText("กรุณากรอกชื่อ-นามสกุล");
     if (!form.phone.trim()) return setErrorText("กรุณากรอกเบอร์โทร");
-    if (!form.team) return setErrorText("กรุณาเลือกทีม");
-    if (!form.size) return setErrorText("กรุณาเลือกไซส์");
-    if (config.requiredFields.shirtName && !form.shirt_name.trim()) {
+    if (!selectedProduct) return setErrorText("กรุณาเลือกสินค้า");
+    if (!selectedTeam) {
+      return setErrorText(
+        "สินค้ากลางยังไม่เปิดให้สั่งซื้อในรอบนี้ กรุณาเลือกสินค้าที่ผูกทีม",
+      );
+    }
+    if (selectedProduct.requires_size && !form.size) {
+      return setErrorText("กรุณาเลือกไซส์");
+    }
+    if (
+      selectedProduct.allows_custom_name &&
+      selectedProduct.requires_custom_name &&
+      !form.shirt_name.trim()
+    ) {
       return setErrorText("กรุณากรอกชื่อบนเสื้อ");
     }
-    if (config.requiredFields.shirtNumber && !form.shirt_number.trim()) {
+    if (
+      selectedProduct.allows_custom_number &&
+      selectedProduct.requires_custom_number &&
+      !form.shirt_number.trim()
+    ) {
       return setErrorText("กรุณากรอกเบอร์เสื้อ");
     }
     if (!form.quantity || form.quantity <= 0) {
       return setErrorText("จำนวนต้องมากกว่า 0");
     }
     if (!form.delivery_method) return setErrorText("กรุณาเลือกวิธีรับสินค้า");
-    if (
-      form.delivery_method === "shipping" &&
-      config.requiredFields.shippingAddress &&
-      !form.address.trim()
-    ) {
+    if (form.delivery_method === "shipping" && !form.address.trim()) {
       return setErrorText("กรุณากรอกที่อยู่จัดส่ง");
-    }
-    if (config.requiredFields.note && !form.note.trim()) {
-      return setErrorText("กรุณากรอกหมายเหตุ");
-    }
-    if (config.requiredFields.paymentNote && !form.payment_note.trim()) {
-      return setErrorText("กรุณากรอกหมายเหตุการชำระเงิน");
     }
 
     const payload = {
+      campaign_id: campaign.id,
+      product_id: selectedProduct.id,
       full_name: form.full_name.trim(),
       phone: form.phone.trim(),
-      team: form.team,
-      size: form.size,
-      shirt_name: config.customFieldsEnabled ? form.shirt_name.trim() : "",
-      shirt_number: config.customFieldsEnabled ? form.shirt_number.trim() : "",
+      team: selectedTeam.slug,
+      size: selectedProduct.requires_size ? form.size : null,
+      shirt_name: selectedProduct.allows_custom_name
+        ? form.shirt_name.trim()
+        : "",
+      shirt_number: selectedProduct.allows_custom_number
+        ? form.shirt_number.trim()
+        : "",
       quantity: form.quantity,
       delivery_method: form.delivery_method,
       address: form.delivery_method === "shipping" ? form.address.trim() : null,
       note: form.note.trim() || null,
       payment_note: form.payment_note.trim() || null,
-      unit_price: config.unitPrice,
+      // Compatibility path for the existing preorders insert. A future PR should
+      // move order creation into an RPC so the database owns price calculation.
+      unit_price: selectedProduct.price,
     };
 
     setSubmitting(true);
@@ -151,19 +161,27 @@ export default function PreorderForm({
       const { error } = await supabaseBrowser.from("preorders").insert(payload);
 
       if (error) {
-        setErrorText(error.message);
+        setErrorText("ไม่สามารถส่งคำสั่งซื้อได้ กรุณาตรวจสอบข้อมูลและลองใหม่");
         return;
       }
 
       setSuccessText(
-        "ระบบได้รับข้อมูลการสั่งซื้อเรียบร้อยแล้ว แอดมินจะตรวจสอบและติดต่อกลับ"
+        "ระบบได้รับข้อมูลการสั่งซื้อเรียบร้อยแล้ว กรุณาส่งสลิปทาง LINE OA ลิงชิงบอล สปอร์ต พร้อมแจ้งชื่อและเบอร์โทร แอดมินจะตรวจสอบยอดและยืนยันออเดอร์อีกครั้ง",
       );
-      setForm({ ...initialState, team: initialTeam });
+      setForm(createInitialState(form.product_id));
     } catch {
       setErrorText("ไม่สามารถส่งคำสั่งซื้อได้ กรุณาลองใหม่อีกครั้ง");
     } finally {
       setSubmitting(false);
     }
+  }
+
+  if (products.length === 0) {
+    return (
+      <div className="rounded-2xl border border-white/10 bg-zinc-900 p-5 text-zinc-300 md:p-7">
+        ยังไม่มีสินค้าที่เปิดรับพรีออเดอร์
+      </div>
+    );
   }
 
   return (
@@ -179,11 +197,40 @@ export default function PreorderForm({
           <h2 className="mt-2 text-2xl font-black">ฟอร์มสั่งซื้อ</h2>
         </div>
         <div className="rounded-xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm font-bold text-red-100">
-          ราคา {config.unitPrice} บาท/ตัว รวม {totalPreview} บาท
+          ราคา {selectedProduct?.price || 0} บาท/ชิ้น รวม {totalPreview} บาท
         </div>
       </div>
 
+      {centralProductDisabled ? (
+        <p className="mt-5 rounded-xl border border-amber-400/40 bg-amber-950/40 p-4 text-sm text-amber-100">
+          สินค้ากลางแสดงได้แล้ว แต่ยังไม่เปิดให้ submit ใน PR นี้เพื่อรักษา compatibility กับ field team เดิม
+        </p>
+      ) : null}
+
       <div className="mt-5 grid gap-4 md:grid-cols-2">
+        <Field label="สินค้า" required>
+          <select
+            className={inputClass}
+            value={form.product_id}
+            onChange={(event) => updateSelectedProduct(event.target.value)}
+            required
+          >
+            {products.map((product) => (
+              <option key={product.id} value={product.id}>
+                {product.name} - {product.price} บาท
+              </option>
+            ))}
+          </select>
+        </Field>
+
+        <Field label="ทีม">
+          <input
+            className={inputClass}
+            value={selectedTeam?.short_name || selectedTeam?.name || "สินค้ากลาง"}
+            readOnly
+          />
+        </Field>
+
         <Field label="ชื่อ-นามสกุล" required>
           <input
             className={inputClass}
@@ -205,73 +252,57 @@ export default function PreorderForm({
           />
         </Field>
 
-        <Field label="ทีม" required>
-          <select
-            className={inputClass}
-            value={form.team}
-            onChange={(event) =>
-              setForm({ ...form, team: event.target.value as TeamValue })
-            }
-            required
-          >
-            {TEAM_OPTIONS.map((team) => (
-              <option key={team.value} value={team.value}>
-                {team.label}
-              </option>
-            ))}
-          </select>
-        </Field>
-
-        <Field label="ไซส์" required>
-          <select
-            className={inputClass}
-            value={form.size}
-            onChange={(event) =>
-              setForm({ ...form, size: event.target.value as SizeValue })
-            }
-            required
-          >
-            {SIZE_OPTIONS.map((size) => (
-              <option key={size} value={size}>
-                {size}
-              </option>
-            ))}
-          </select>
-        </Field>
-
-        {config.customFieldsEnabled ? (
-          <>
-            <Field label="ชื่อบนเสื้อ" required={config.requiredFields.shirtName}>
-              <input
-                className={inputClass}
-                value={form.shirt_name}
-                onChange={(event) =>
-                  setForm({ ...form, shirt_name: event.target.value })
-                }
-                required={config.requiredFields.shirtName}
-              />
-            </Field>
-
-            <Field
-              label="เบอร์เสื้อ"
-              required={config.requiredFields.shirtNumber}
+        {selectedProduct?.requires_size ? (
+          <Field label="ไซส์" required>
+            <select
+              className={inputClass}
+              value={form.size}
+              onChange={(event) =>
+                setForm({ ...form, size: event.target.value as SizeValue })
+              }
+              required
             >
-              <input
-                className={inputClass}
-                inputMode="numeric"
-                value={form.shirt_number}
-                onChange={(event) =>
-                  setForm({ ...form, shirt_number: event.target.value })
-                }
-                required={config.requiredFields.shirtNumber}
-              />
-            </Field>
-          </>
-        ) : (
-          <div className="rounded-xl border border-white/10 bg-zinc-950 p-4 text-sm text-zinc-300 md:col-span-2">
-            รอบนี้ปิดการกรอกชื่อบนเสื้อและเบอร์เสื้อจากหลังบ้านแล้ว
-          </div>
-        )}
+              {SIZE_OPTIONS.map((size) => (
+                <option key={size} value={size}>
+                  {size}
+                </option>
+              ))}
+            </select>
+          </Field>
+        ) : null}
+
+        {selectedProduct?.allows_custom_name ? (
+          <Field
+            label="ชื่อบนเสื้อ"
+            required={selectedProduct.requires_custom_name}
+          >
+            <input
+              className={inputClass}
+              value={form.shirt_name}
+              onChange={(event) =>
+                setForm({ ...form, shirt_name: event.target.value })
+              }
+              required={selectedProduct.requires_custom_name}
+            />
+          </Field>
+        ) : null}
+
+        {selectedProduct?.allows_custom_number ? (
+          <Field
+            label="เบอร์เสื้อ"
+            required={selectedProduct.requires_custom_number}
+          >
+            <input
+              className={inputClass}
+              inputMode="numeric"
+              value={form.shirt_number}
+              onChange={(event) =>
+                setForm({ ...form, shirt_number: event.target.value })
+              }
+              required={selectedProduct.requires_custom_number}
+            />
+          </Field>
+        ) : null}
 
         <Field label="จำนวน" required>
           <input
@@ -310,10 +341,7 @@ export default function PreorderForm({
       <div className="mt-4 grid gap-4">
         <Field
           label="ที่อยู่จัดส่ง (กรอกเมื่อเลือกจัดส่ง)"
-          required={
-            form.delivery_method === "shipping" &&
-            config.requiredFields.shippingAddress
-          }
+          required={form.delivery_method === "shipping"}
         >
           <textarea
             className={`${inputClass} min-h-24`}
@@ -324,7 +352,7 @@ export default function PreorderForm({
           />
         </Field>
 
-        <Field label="หมายเหตุ" required={config.requiredFields.note}>
+        <Field label="หมายเหตุ">
           <textarea
             className={`${inputClass} min-h-20`}
             value={form.note}
@@ -332,10 +360,7 @@ export default function PreorderForm({
           />
         </Field>
 
-        <Field
-          label="หมายเหตุการชำระเงิน"
-          required={config.requiredFields.paymentNote}
-        >
+        <Field label="หมายเหตุการชำระเงิน">
           <textarea
             className={`${inputClass} min-h-20`}
             value={form.payment_note}
@@ -360,7 +385,7 @@ export default function PreorderForm({
 
       <button
         type="submit"
-        disabled={submitting}
+        disabled={submitting || centralProductDisabled}
         className="mt-5 w-full rounded-xl bg-red-600 px-5 py-4 text-base font-black text-white transition hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-60"
       >
         {submitting ? "กำลังส่งคำสั่งซื้อ..." : "ยืนยันการสั่งซื้อ"}
