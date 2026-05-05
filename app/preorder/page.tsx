@@ -8,6 +8,7 @@ import type {
   PreorderTeam,
 } from "@/components/preorder/types";
 import { productTypeLabels } from "@/components/preorder/types";
+import { normalizePreorderConfig } from "@/lib/preorder-config";
 
 export const dynamic = "force-dynamic";
 
@@ -50,11 +51,17 @@ type ProductRow = Omit<PreorderProduct, "team"> & {
   created_at: string;
 };
 
+type VisualConfig = {
+  coverImageUrl: string;
+  teamImageUrls: Record<string, string>;
+};
+
 type PreorderPageData =
   | {
       status: "ready";
       campaign: PreorderCampaign;
       products: PreorderProduct[];
+      visualConfig: VisualConfig;
     }
   | { status: "empty-campaign" }
   | { status: "empty-products"; campaign: PreorderCampaign }
@@ -156,13 +163,49 @@ async function getPreorderPageData(): Promise<PreorderPageData> {
     });
   }
 
+  const visualConfig = await getPreorderVisualConfig(supabase);
+
   return {
     status: "ready",
     campaign,
     products: productRows.map((product) => ({
       ...product,
+      image_url:
+        product.image_url ||
+        (product.team_id
+          ? visualConfig.teamImageUrls[teamMap.get(product.team_id)?.slug || ""]
+          : "") ||
+        null,
       team: product.team_id ? teamMap.get(product.team_id) || null : null,
     })),
+    visualConfig,
+  };
+}
+
+async function getPreorderVisualConfig(
+  supabase: NonNullable<ReturnType<typeof createPublicSupabaseClient>>,
+): Promise<VisualConfig> {
+  const { data, error } = await supabase
+    .from("site_settings")
+    .select("key, value")
+    .in("key", ["preorder_config", "preorder_custom_fields_enabled"]);
+
+  if (error) {
+    return { coverImageUrl: "", teamImageUrls: {} };
+  }
+
+  const preorderConfig = data?.find((item) => item.key === "preorder_config");
+  const legacyCustomFields = data?.find(
+    (item) => item.key === "preorder_custom_fields_enabled",
+  );
+  const config = normalizePreorderConfig(
+    preorderConfig?.value,
+    legacyCustomFields?.value !== "false",
+  );
+
+  return {
+    coverImageUrl: config.coverImageUrl,
+    teamImageUrls: config.teamImageUrls,
   };
 }
 
@@ -251,7 +294,7 @@ export default async function PreorderPage({
     );
   }
 
-  const { campaign, products } = pageData;
+  const { campaign, products, visualConfig } = pageData;
   const productParam = (await searchParams).product;
   const requestedProductId = Array.isArray(productParam)
     ? productParam[0]
@@ -272,7 +315,9 @@ export default async function PreorderPage({
   const paymentAccountNumber =
     campaign.payment_account_number || DEFAULT_PAYMENT.accountNumber;
   const paymentNote = campaign.payment_note || DEFAULT_PAYMENT.note;
-  const heroImage = products.find((product) => product.image_url)?.image_url;
+  const heroImage =
+    visualConfig.coverImageUrl ||
+    products.find((product) => product.image_url)?.image_url;
 
   return (
     <main className="min-h-screen bg-zinc-950 text-white">
@@ -305,31 +350,26 @@ export default async function PreorderPage({
 
         <div className="group overflow-hidden rounded-[28px] border border-white/10 bg-zinc-900 shadow-2xl shadow-red-950/30 transition duration-300 hover:-translate-y-1 hover:border-red-300/40">
           {heroImage ? (
-            <div className="bg-gradient-to-br from-zinc-800 via-zinc-950 to-red-950/70 p-2 sm:p-3">
+            <div className="relative bg-gradient-to-br from-zinc-900 via-zinc-950 to-red-950/70 p-2 sm:p-3">
               <div
                 aria-label="Preorder product preview"
-                className="aspect-[4/3] rounded-2xl border border-white/15 bg-zinc-950 bg-contain bg-center bg-no-repeat transition duration-700 group-hover:scale-[1.02]"
+                className="aspect-[4/3] rounded-2xl border border-white/15 bg-zinc-950 bg-contain bg-center bg-no-repeat transition duration-700 group-hover:scale-[1.035] lg:aspect-[5/4]"
                 style={{
                   backgroundImage: `url("${heroImage}")`,
                 }}
               />
+              <div className="pointer-events-none absolute inset-2 rounded-2xl bg-gradient-to-t from-zinc-950/25 via-transparent to-white/5 sm:inset-3" />
             </div>
           ) : (
-            <div className="bg-gradient-to-br from-red-600 via-zinc-900 to-amber-500 p-6">
-              <div className="aspect-[4/3] rounded-2xl border border-white/20 bg-black/25 p-5 backdrop-blur-sm">
-                <div className="flex h-full flex-col justify-between rounded-xl border border-white/20 bg-zinc-950/75 p-5">
-                  <div>
-                    <p className="text-xs font-bold uppercase tracking-[0.24em] text-amber-200">
-                      {campaign.name}
-                    </p>
-                    <p className="mt-3 text-4xl font-black">02</p>
-                  </div>
-                  <div>
-                    <div className="h-2 w-24 rounded-full bg-red-500" />
-                    <p className="mt-3 text-sm font-semibold text-zinc-200">
-                      Dynamic preorder products
-                    </p>
-                  </div>
+            <div className="bg-gradient-to-br from-red-600 via-zinc-900 to-amber-500 p-2 sm:p-3">
+              <div className="flex aspect-[4/3] items-end rounded-2xl border border-white/15 bg-zinc-950/45 p-6 lg:aspect-[5/4]">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.24em] text-amber-200">
+                    {campaign.name}
+                  </p>
+                  <p className="mt-3 max-w-xs text-2xl font-black">
+                    Dynamic preorder products
+                  </p>
                 </div>
               </div>
             </div>
