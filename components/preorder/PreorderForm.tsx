@@ -1,200 +1,329 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import type { FormEvent, ReactNode } from "react";
+import { useMemo, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 
-type TeamOption = {
-  value: string;
-  label: string;
-};
-
-const TEAM_OPTIONS: TeamOption[] = [
+const TEAM_OPTIONS = [
   { value: "photha", label: "เสื้อจตุรมิตร - โพธา" },
   { value: "benjamarachutit", label: "เสื้อจตุรมิตร - เบญจมราชูทิศ" },
   { value: "daruna", label: "เสื้อจตุรมิตร - ดรุณาราชบุรี" },
   { value: "sarasit", label: "เสื้อจตุรมิตร - สารสิทธิ์พิทยาลัย" },
-];
+] as const;
 
-const SIZE_OPTIONS = ["S", "M", "L", "XL", "2XL", "3XL"];
+const SIZE_OPTIONS = ["S", "M", "L", "XL", "2XL", "3XL", "4XL", "5XL"] as const;
+
+const DELIVERY_OPTIONS = [
+  { value: "pickup", label: "รับที่หน้างาน" },
+  { value: "shipping", label: "จัดส่ง" },
+] as const;
+
 const UNIT_PRICE = 390;
 
-export default function PreorderForm() {
-  const [fullName, setFullName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [team, setTeam] = useState("");
-  const [size, setSize] = useState("");
-  const [shirtName, setShirtName] = useState("");
-  const [shirtNumber, setShirtNumber] = useState("");
-  const [quantity, setQuantity] = useState(1);
-  const [deliveryMethod, setDeliveryMethod] = useState("pickup");
-  const [address, setAddress] = useState("");
-  const [note, setNote] = useState("");
-  const [paymentNote, setPaymentNote] = useState("");
-  const [errorMessage, setErrorMessage] = useState("");
-  const [successMessage, setSuccessMessage] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
+export type TeamValue = (typeof TEAM_OPTIONS)[number]["value"];
+type SizeValue = (typeof SIZE_OPTIONS)[number];
+type DeliveryValue = (typeof DELIVERY_OPTIONS)[number]["value"];
 
-  const totalPrice = useMemo(() => quantity * UNIT_PRICE, [quantity]);
+type FormState = {
+  full_name: string;
+  phone: string;
+  team: TeamValue;
+  size: SizeValue;
+  shirt_name: string;
+  shirt_number: string;
+  quantity: number;
+  delivery_method: DeliveryValue;
+  address: string;
+  note: string;
+  payment_note: string;
+};
 
-  const resetForm = () => {
-    setFullName("");
-    setPhone("");
-    setTeam("");
-    setSize("");
-    setShirtName("");
-    setShirtNumber("");
-    setQuantity(1);
-    setDeliveryMethod("pickup");
-    setAddress("");
-    setNote("");
-    setPaymentNote("");
-  };
+const initialState: FormState = {
+  full_name: "",
+  phone: "",
+  team: "photha",
+  size: "M",
+  shirt_name: "",
+  shirt_number: "",
+  quantity: 1,
+  delivery_method: "pickup",
+  address: "",
+  note: "",
+  payment_note: "",
+};
 
-  const validate = () => {
-    if (!fullName.trim()) return "กรุณากรอกชื่อ-นามสกุล";
-    if (!phone.trim()) return "กรุณากรอกเบอร์โทร";
-    if (!team) return "กรุณาเลือกทีม";
-    if (!size) return "กรุณาเลือกไซส์";
-    if (!shirtName.trim()) return "กรุณากรอกชื่อบนเสื้อ";
-    if (!shirtNumber.trim()) return "กรุณากรอกเบอร์เสื้อ";
-    if (!Number.isFinite(quantity) || quantity <= 0)
-      return "จำนวนสั่งซื้อต้องมากกว่า 0";
-    if (!deliveryMethod) return "กรุณาเลือกวิธีรับสินค้า";
-    if (deliveryMethod === "shipping" && !address.trim())
-      return "กรุณากรอกที่อยู่จัดส่ง";
+const inputClass =
+  "w-full rounded-xl border border-white/10 bg-zinc-950 px-4 py-3 text-white outline-none transition placeholder:text-zinc-600 focus:border-red-300";
 
-    return "";
-  };
+export default function PreorderForm({
+  initialTeam = initialState.team,
+}: {
+  initialTeam?: TeamValue;
+}) {
+  const [form, setForm] = useState<FormState>({
+    ...initialState,
+    team: initialTeam,
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [errorText, setErrorText] = useState("");
+  const [successText, setSuccessText] = useState("");
 
-  const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
+  const totalPreview = useMemo(() => form.quantity * UNIT_PRICE, [form.quantity]);
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setErrorMessage("");
-    setSuccessMessage("");
+    setErrorText("");
+    setSuccessText("");
 
-    const validationError = validate();
-    if (validationError) {
-      setErrorMessage(validationError);
-      return;
+    if (!form.full_name.trim()) return setErrorText("กรุณากรอกชื่อ-นามสกุล");
+    if (!form.phone.trim()) return setErrorText("กรุณากรอกเบอร์โทร");
+    if (!form.team) return setErrorText("กรุณาเลือกทีม");
+    if (!form.size) return setErrorText("กรุณาเลือกไซส์");
+    if (!form.shirt_name.trim()) return setErrorText("กรุณากรอกชื่อบนเสื้อ");
+    if (!form.shirt_number.trim()) return setErrorText("กรุณากรอกเบอร์เสื้อ");
+    if (!form.quantity || form.quantity <= 0) {
+      return setErrorText("จำนวนต้องมากกว่า 0");
+    }
+    if (!form.delivery_method) return setErrorText("กรุณาเลือกวิธีรับสินค้า");
+    if (form.delivery_method === "shipping" && !form.address.trim()) {
+      return setErrorText("กรุณากรอกที่อยู่จัดส่ง");
     }
 
-    setIsSubmitting(true);
-
-    const { error } = await supabaseBrowser.from("preorders").insert({
-      full_name: fullName.trim(),
-      phone: phone.trim(),
-      team,
-      size,
-      shirt_name: shirtName.trim(),
-      shirt_number: shirtNumber.trim(),
-      quantity,
-      delivery_method: deliveryMethod,
-      address: deliveryMethod === "shipping" ? address.trim() : null,
-      note: note.trim() || null,
-      payment_note: paymentNote.trim() || null,
+    const payload = {
+      full_name: form.full_name.trim(),
+      phone: form.phone.trim(),
+      team: form.team,
+      size: form.size,
+      shirt_name: form.shirt_name.trim(),
+      shirt_number: form.shirt_number.trim(),
+      quantity: form.quantity,
+      delivery_method: form.delivery_method,
+      address: form.delivery_method === "shipping" ? form.address.trim() : null,
+      note: form.note.trim() || null,
+      payment_note: form.payment_note.trim() || null,
       unit_price: UNIT_PRICE,
-    });
+    };
 
-    setIsSubmitting(false);
+    setSubmitting(true);
 
-    if (error) {
-      setErrorMessage(`บันทึกพรีออเดอร์ไม่สำเร็จ: ${error.message}`);
-      return;
+    try {
+      const { error } = await supabaseBrowser.from("preorders").insert(payload);
+
+      if (error) {
+        setErrorText(error.message);
+        return;
+      }
+
+      setSuccessText(
+        "ระบบได้รับข้อมูลการสั่งซื้อเรียบร้อยแล้ว แอดมินจะตรวจสอบและติดต่อกลับ"
+      );
+      setForm({ ...initialState, team: initialTeam });
+    } catch {
+      setErrorText("ไม่สามารถส่งคำสั่งซื้อได้ กรุณาลองใหม่อีกครั้ง");
+    } finally {
+      setSubmitting(false);
     }
-
-    setSuccessMessage("ส่งพรีออเดอร์เรียบร้อยแล้ว ทีมงานจะติดต่อกลับตามข้อมูลที่ให้ไว้");
-    resetForm();
-  };
+  }
 
   return (
-    <form onSubmit={onSubmit} className="space-y-4 rounded-2xl border border-white/15 bg-white/5 p-6">
-      <h3 className="text-xl font-semibold">ฟอร์มสั่งซื้อ</h3>
-
-      {errorMessage ? <p className="rounded-lg bg-red-500/20 p-3 text-red-200">{errorMessage}</p> : null}
-      {successMessage ? <p className="rounded-lg bg-emerald-500/20 p-3 text-emerald-100">{successMessage}</p> : null}
-
-      <div className="grid gap-4 md:grid-cols-2">
-        <label className="space-y-1">
-          <span className="text-sm">ชื่อ-นามสกุล *</span>
-          <input value={fullName} onChange={(e) => setFullName(e.target.value)} className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2" />
-        </label>
-        <label className="space-y-1">
-          <span className="text-sm">เบอร์โทร *</span>
-          <input value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2" />
-        </label>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2">
-        <label className="space-y-1">
-          <span className="text-sm">ทีม *</span>
-          <select value={team} onChange={(e) => setTeam(e.target.value)} className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2">
-            <option value="">-- เลือกทีม --</option>
-            {TEAM_OPTIONS.map((item) => (
-              <option key={item.value} value={item.value}>{item.label}</option>
-            ))}
-          </select>
-        </label>
-
-        <label className="space-y-1">
-          <span className="text-sm">ไซส์ *</span>
-          <select value={size} onChange={(e) => setSize(e.target.value)} className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2">
-            <option value="">-- เลือกไซส์ --</option>
-            {SIZE_OPTIONS.map((item) => (
-              <option key={item} value={item}>{item}</option>
-            ))}
-          </select>
-        </label>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-3">
-        <label className="space-y-1 md:col-span-2">
-          <span className="text-sm">ชื่อบนเสื้อ *</span>
-          <input value={shirtName} onChange={(e) => setShirtName(e.target.value)} className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2" />
-        </label>
-        <label className="space-y-1">
-          <span className="text-sm">เบอร์เสื้อ *</span>
-          <input value={shirtNumber} onChange={(e) => setShirtNumber(e.target.value)} className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2" />
-        </label>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2">
-        <label className="space-y-1">
-          <span className="text-sm">จำนวน *</span>
-          <input type="number" min={1} value={quantity} onChange={(e) => setQuantity(Number(e.target.value || 0))} className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2" />
-        </label>
-        <div className="rounded-lg border border-white/20 bg-black/20 px-3 py-2">
-          <p className="text-sm text-slate-300">ราคาต่อชิ้น: {UNIT_PRICE} บาท</p>
-          <p className="text-lg font-semibold">รวมทั้งหมด: {totalPrice.toLocaleString()} บาท</p>
+    <form
+      onSubmit={handleSubmit}
+      className="rounded-2xl border border-white/10 bg-zinc-900 p-5 shadow-2xl shadow-black/30 md:p-7"
+    >
+      <div className="flex flex-col gap-3 border-b border-white/10 pb-5 md:flex-row md:items-end md:justify-between">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.24em] text-red-300">
+            Order Form
+          </p>
+          <h2 className="mt-2 text-2xl font-black">ฟอร์มสั่งซื้อ</h2>
+        </div>
+        <div className="rounded-xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm font-bold text-red-100">
+          ราคา {UNIT_PRICE} บาท/ตัว รวม {totalPreview} บาท
         </div>
       </div>
 
-      <label className="space-y-1 block">
-        <span className="text-sm">วิธีรับสินค้า *</span>
-        <select value={deliveryMethod} onChange={(e) => setDeliveryMethod(e.target.value)} className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2">
-          <option value="pickup">รับหน้างาน</option>
-          <option value="shipping">จัดส่ง</option>
-        </select>
-      </label>
+      <div className="mt-5 grid gap-4 md:grid-cols-2">
+        <Field label="ชื่อ-นามสกุล" required>
+          <input
+            className={inputClass}
+            value={form.full_name}
+            onChange={(event) =>
+              setForm({ ...form, full_name: event.target.value })
+            }
+            required
+          />
+        </Field>
 
-      {deliveryMethod === "shipping" ? (
-        <label className="space-y-1 block">
-          <span className="text-sm">ที่อยู่จัดส่ง *</span>
-          <textarea value={address} onChange={(e) => setAddress(e.target.value)} rows={3} className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2" />
-        </label>
-      ) : null}
+        <Field label="เบอร์โทร" required>
+          <input
+            className={inputClass}
+            inputMode="tel"
+            value={form.phone}
+            onChange={(event) => setForm({ ...form, phone: event.target.value })}
+            required
+          />
+        </Field>
 
-      <label className="space-y-1 block">
-        <span className="text-sm">หมายเหตุเพิ่มเติม</span>
-        <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2" />
-      </label>
+        <Field label="ทีม" required>
+          <select
+            className={inputClass}
+            value={form.team}
+            onChange={(event) =>
+              setForm({ ...form, team: event.target.value as TeamValue })
+            }
+            required
+          >
+            {TEAM_OPTIONS.map((team) => (
+              <option key={team.value} value={team.value}>
+                {team.label}
+              </option>
+            ))}
+          </select>
+        </Field>
 
-      <label className="space-y-1 block">
-        <span className="text-sm">หมายเหตุการชำระเงิน</span>
-        <textarea value={paymentNote} onChange={(e) => setPaymentNote(e.target.value)} rows={2} className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2" />
-      </label>
+        <Field label="ไซส์" required>
+          <select
+            className={inputClass}
+            value={form.size}
+            onChange={(event) =>
+              setForm({ ...form, size: event.target.value as SizeValue })
+            }
+            required
+          >
+            {SIZE_OPTIONS.map((size) => (
+              <option key={size} value={size}>
+                {size}
+              </option>
+            ))}
+          </select>
+        </Field>
 
-      <button type="submit" disabled={isSubmitting} className="rounded-xl bg-amber-400 px-5 py-2 font-semibold text-black disabled:cursor-not-allowed disabled:opacity-60">
-        {isSubmitting ? "กำลังบันทึก..." : "ส่งคำสั่งซื้อ"}
+        <Field label="ชื่อบนเสื้อ" required>
+          <input
+            className={inputClass}
+            value={form.shirt_name}
+            onChange={(event) =>
+              setForm({ ...form, shirt_name: event.target.value })
+            }
+            required
+          />
+        </Field>
+
+        <Field label="เบอร์เสื้อ" required>
+          <input
+            className={inputClass}
+            inputMode="numeric"
+            value={form.shirt_number}
+            onChange={(event) =>
+              setForm({ ...form, shirt_number: event.target.value })
+            }
+            required
+          />
+        </Field>
+
+        <Field label="จำนวน" required>
+          <input
+            type="number"
+            min={1}
+            className={inputClass}
+            value={form.quantity}
+            onChange={(event) =>
+              setForm({ ...form, quantity: Number(event.target.value) || 1 })
+            }
+            required
+          />
+        </Field>
+
+        <Field label="วิธีรับสินค้า" required>
+          <select
+            className={inputClass}
+            value={form.delivery_method}
+            onChange={(event) =>
+              setForm({
+                ...form,
+                delivery_method: event.target.value as DeliveryValue,
+              })
+            }
+            required
+          >
+            {DELIVERY_OPTIONS.map((delivery) => (
+              <option key={delivery.value} value={delivery.value}>
+                {delivery.label}
+              </option>
+            ))}
+          </select>
+        </Field>
+      </div>
+
+      <div className="mt-4 grid gap-4">
+        <Field label="ที่อยู่จัดส่ง (กรอกเมื่อเลือกจัดส่ง)">
+          <textarea
+            className={`${inputClass} min-h-24`}
+            value={form.address}
+            onChange={(event) =>
+              setForm({ ...form, address: event.target.value })
+            }
+          />
+        </Field>
+
+        <Field label="หมายเหตุ">
+          <textarea
+            className={`${inputClass} min-h-20`}
+            value={form.note}
+            onChange={(event) => setForm({ ...form, note: event.target.value })}
+          />
+        </Field>
+
+        <Field label="หมายเหตุการชำระเงิน">
+          <textarea
+            className={`${inputClass} min-h-20`}
+            value={form.payment_note}
+            onChange={(event) =>
+              setForm({ ...form, payment_note: event.target.value })
+            }
+          />
+        </Field>
+      </div>
+
+      {errorText && (
+        <p className="mt-5 rounded-xl border border-red-500/40 bg-red-950/50 p-4 text-sm text-red-100">
+          {errorText}
+        </p>
+      )}
+
+      {successText && (
+        <p className="mt-5 rounded-xl border border-emerald-500/40 bg-emerald-950/50 p-4 text-sm text-emerald-100">
+          {successText}
+        </p>
+      )}
+
+      <button
+        type="submit"
+        disabled={submitting}
+        className="mt-5 w-full rounded-xl bg-red-600 px-5 py-4 text-base font-black text-white transition hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        {submitting ? "กำลังส่งคำสั่งซื้อ..." : "ยืนยันการสั่งซื้อ"}
       </button>
     </form>
+  );
+}
+
+function Field({
+  label,
+  required,
+  children,
+}: {
+  label: string;
+  required?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <label className="block space-y-2 text-sm">
+      <span className="font-semibold text-zinc-300">
+        {label}
+        {required ? " *" : ""}
+      </span>
+      {children}
+    </label>
   );
 }

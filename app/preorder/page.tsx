@@ -1,73 +1,173 @@
-import PreorderForm from "@/components/preorder/PreorderForm";
+import PreorderForm, { type TeamValue } from "@/components/preorder/PreorderForm";
 
-const products = [
-  { key: "photha", name: "เสื้อจตุรมิตร - โพธา", accent: "from-rose-600 to-rose-800" },
-  { key: "benjamarachutit", name: "เสื้อจตุรมิตร - เบญจมราชูทิศ", accent: "from-sky-600 to-indigo-800" },
-  { key: "daruna", name: "เสื้อจตุรมิตร - ดรุณาราชบุรี", accent: "from-emerald-600 to-green-800" },
-  { key: "sarasit", name: "เสื้อจตุรมิตร - สารสิทธิ์พิทยาลัย", accent: "from-amber-500 to-orange-700" },
+const PRODUCTS: Array<{
+  key: TeamValue;
+  label: string;
+  shortName: string;
+  accent: string;
+}> = [
+  {
+    key: "photha",
+    label: "เสื้อจตุรมิตร - โพธา",
+    shortName: "โพธา",
+    accent: "from-red-600 via-rose-700 to-zinc-950",
+  },
+  {
+    key: "benjamarachutit",
+    label: "เสื้อจตุรมิตร - เบญจมราชูทิศ",
+    shortName: "เบญจมราชูทิศ",
+    accent: "from-sky-500 via-blue-700 to-zinc-950",
+  },
+  {
+    key: "daruna",
+    label: "เสื้อจตุรมิตร - ดรุณาราชบุรี",
+    shortName: "ดรุณาราชบุรี",
+    accent: "from-emerald-500 via-green-700 to-zinc-950",
+  },
+  {
+    key: "sarasit",
+    label: "เสื้อจตุรมิตร - สารสิทธิ์พิทยาลัย",
+    shortName: "สารสิทธิ์พิทยาลัย",
+    accent: "from-amber-400 via-orange-600 to-zinc-950",
+  },
 ];
 
-const sizeChart = [
+const SIZE_CHART = [
   ["S", "36", "26"],
   ["M", "38", "27"],
   ["L", "40", "28"],
   ["XL", "42", "29"],
   ["2XL", "44", "30"],
   ["3XL", "46", "31"],
-];
+  ["4XL", "48", "32"],
+  ["5XL", "50", "33"],
+] as const;
 
-export default function PreorderPage() {
+function isTeamValue(value: unknown): value is TeamValue {
+  return PRODUCTS.some((product) => product.key === value);
+}
+
+export default async function PreorderPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ team?: string | string[] | undefined }>;
+}) {
+  const teamParam = (await searchParams).team;
+  const requestedTeam = Array.isArray(teamParam) ? teamParam[0] : teamParam;
+  const selectedTeam: TeamValue = isTeamValue(requestedTeam)
+    ? requestedTeam
+    : "photha";
+
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100">
-      <section className="mx-auto max-w-6xl px-4 py-14 md:py-20">
-        <div className="rounded-3xl border border-white/15 bg-gradient-to-br from-slate-900 to-slate-800 p-8 md:p-12">
-          <p className="text-sm uppercase tracking-[0.2em] text-amber-300">Preorder รอบที่ 2</p>
-          <h1 className="mt-3 text-3xl font-extrabold md:text-5xl">พรีออเดอร์เสื้อจตุรมิตรราชบุรี ครั้งที่ 2</h1>
-          <p className="mt-4 max-w-3xl text-slate-300">เปิดรับพรีออเดอร์เสื้อทั้ง 4 ทีม ราคา 390 บาท/ตัว เลือกรับหน้างานหรือจัดส่งได้ กรุณากรอกข้อมูลให้ครบเพื่อยืนยันคำสั่งซื้อ</p>
+    <main className="min-h-screen bg-zinc-950 text-white">
+      <section className="mx-auto grid max-w-6xl gap-8 px-4 py-8 md:px-6 md:py-12 lg:grid-cols-[1.15fr_0.85fr] lg:items-center">
+        <div className="py-3">
+          <p className="text-xs font-bold uppercase tracking-[0.28em] text-red-300">
+            Preorder 2026
+          </p>
+          <h1 className="mt-4 text-3xl font-black leading-tight md:text-5xl">
+            พรีออเดอร์เสื้อจตุรมิตรราชบุรี ครั้งที่ 2
+          </h1>
+          <p className="mt-4 max-w-2xl text-base leading-7 text-zinc-300">
+            ผลิตโดย ลิงชิงบอล สปอร์ต ใส่ชื่อและเบอร์หลังเสื้อฟรี
+            เลือกทีมได้ครบ 4 โรงเรียนในรายการจตุรมิตรราชบุรี
+          </p>
+          <div className="mt-6 flex flex-wrap gap-3 text-sm font-bold">
+            <span className="rounded-full border border-red-400/40 bg-red-500/10 px-4 py-2 text-red-100">
+              ราคา 390 บาท
+            </span>
+            <span className="rounded-full border border-white/15 bg-white/10 px-4 py-2 text-zinc-100">
+              ผลิตตามออเดอร์
+            </span>
+            <span className="rounded-full border border-white/15 bg-white/10 px-4 py-2 text-zinc-100">
+              ชื่อและเบอร์ฟรี
+            </span>
+          </div>
+        </div>
+
+        <div className="overflow-hidden rounded-[28px] border border-white/10 bg-zinc-900 shadow-2xl shadow-red-950/30">
+          <div className="bg-gradient-to-br from-red-600 via-zinc-900 to-amber-500 p-6">
+            <div className="aspect-[4/3] rounded-2xl border border-white/20 bg-black/25 p-5 backdrop-blur-sm">
+              <div className="flex h-full flex-col justify-between rounded-xl border border-white/20 bg-zinc-950/75 p-5">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.24em] text-amber-200">
+                    Jaturamit Ratchaburi
+                  </p>
+                  <p className="mt-3 text-4xl font-black">02</p>
+                </div>
+                <div>
+                  <div className="h-2 w-24 rounded-full bg-red-500" />
+                  <p className="mt-3 text-sm font-semibold text-zinc-200">
+                    Custom name and number
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
-      <section className="mx-auto max-w-6xl px-4 pb-10">
-        <h2 className="mb-4 text-2xl font-bold">ทีมที่เปิดสั่งซื้อ</h2>
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {products.map((product) => (
-            <article key={product.key} className="rounded-2xl border border-white/15 bg-slate-900/70 p-4">
-              <div className={`mb-4 h-28 rounded-xl bg-gradient-to-br ${product.accent}`} />
-              <h3 className="text-lg font-semibold">{product.name}</h3>
-              <p className="mt-1 text-sm text-slate-300">รุ่นแข่งจตุรมิตร พร้อมสกรีนชื่อและเบอร์ตามสั่ง</p>
-            </article>
+      <section className="mx-auto max-w-6xl px-4 pb-8 md:px-6">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {PRODUCTS.map((product) => (
+            <a
+              key={product.key}
+              href={`/preorder?team=${product.key}#preorder-form`}
+              className="group overflow-hidden rounded-2xl border border-white/10 bg-zinc-900 transition hover:-translate-y-0.5 hover:border-red-300/70 hover:bg-zinc-800"
+            >
+              <div className={`h-24 bg-gradient-to-br ${product.accent}`} />
+              <div className="p-5">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-400">
+                  {product.shortName}
+                </p>
+                <h2 className="mt-2 min-h-14 text-lg font-black leading-snug">
+                  {product.label}
+                </h2>
+                <div className="mt-4 flex items-center justify-between gap-3">
+                  <span className="text-sm font-black text-red-200">
+                    390 บาท
+                  </span>
+                  <span className="rounded-full border border-white/15 px-3 py-1 text-xs font-bold text-zinc-200 group-hover:border-red-300/60 group-hover:text-red-100">
+                    เลือกทีม
+                  </span>
+                </div>
+              </div>
+            </a>
           ))}
         </div>
       </section>
 
-      <section className="mx-auto grid max-w-6xl gap-6 px-4 pb-10 lg:grid-cols-2">
-        <article className="rounded-2xl border border-white/15 bg-white/5 p-6">
-          <h2 className="mb-4 text-2xl font-bold">รายละเอียดสินค้า</h2>
-          <ul className="list-disc space-y-2 pl-6 text-slate-200">
-            <li>ราคา 390 บาท/ตัว</li>
-            <li>ระบุชื่อบนเสื้อและหมายเลขได้</li>
-            <li>มีไซส์ S - 3XL</li>
-            <li>เปิดรับแบบรับหน้างาน และจัดส่ง</li>
+      <section className="mx-auto grid max-w-6xl gap-5 px-4 pb-8 md:px-6 lg:grid-cols-[0.9fr_1.1fr]">
+        <article className="rounded-2xl border border-white/10 bg-zinc-900 p-5 md:p-6">
+          <h2 className="text-xl font-black">รายละเอียดสินค้า</h2>
+          <ul className="mt-4 space-y-3 text-sm leading-6 text-zinc-300">
+            <li>เสื้อผลิตตามออเดอร์ ไม่มีสต็อกพร้อมส่ง</li>
+            <li>ใส่ชื่อและเบอร์ฟรี</li>
+            <li>เหมาะสำหรับใส่เชียร์ ใส่ซ้อม หรือสะสม</li>
+            <li>ผลิตโดย ลิงชิงบอล สปอร์ต</li>
           </ul>
         </article>
 
-        <article className="rounded-2xl border border-white/15 bg-white/5 p-6">
-          <h2 className="mb-4 text-2xl font-bold">ตารางไซส์</h2>
+        <article className="overflow-hidden rounded-2xl border border-white/10 bg-zinc-900">
+          <div className="border-b border-white/10 p-5 md:p-6">
+            <h2 className="text-xl font-black">ตารางไซส์</h2>
+            <p className="mt-1 text-sm text-zinc-400">หน่วยวัดเป็นนิ้ว</p>
+          </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="border-b border-white/15 text-slate-300">
-                  <th className="py-2">ไซส์</th>
-                  <th className="py-2">รอบอก (นิ้ว)</th>
-                  <th className="py-2">ความยาว (นิ้ว)</th>
+            <table className="w-full min-w-[420px] text-sm">
+              <thead className="bg-white/5 text-zinc-300">
+                <tr>
+                  <th className="px-4 py-3 text-left">ไซส์</th>
+                  <th className="px-4 py-3 text-left">รอบอก</th>
+                  <th className="px-4 py-3 text-left">ความยาว</th>
                 </tr>
               </thead>
               <tbody>
-                {sizeChart.map(([size, chest, length]) => (
-                  <tr key={size} className="border-b border-white/10">
-                    <td className="py-2 font-medium">{size}</td>
-                    <td className="py-2">{chest}</td>
-                    <td className="py-2">{length}</td>
+                {SIZE_CHART.map(([size, chest, length]) => (
+                  <tr key={size} className="border-t border-white/10">
+                    <td className="px-4 py-3 font-black">{size}</td>
+                    <td className="px-4 py-3 text-zinc-300">{chest}</td>
+                    <td className="px-4 py-3 text-zinc-300">{length}</td>
                   </tr>
                 ))}
               </tbody>
@@ -76,20 +176,8 @@ export default function PreorderPage() {
         </article>
       </section>
 
-      <section className="mx-auto max-w-6xl px-4 pb-10">
-        <PreorderForm />
-      </section>
-
-      <section className="mx-auto max-w-6xl px-4 pb-16">
-        <article className="rounded-2xl border border-amber-300/20 bg-amber-300/5 p-6 text-amber-100">
-          <h2 className="mb-3 text-2xl font-bold">เงื่อนไขการสั่งซื้อ</h2>
-          <ul className="list-decimal space-y-2 pl-6">
-            <li>กรุณาตรวจสอบชื่อและเบอร์เสื้อก่อนยืนยันคำสั่งซื้อ</li>
-            <li>สินค้าเป็นงานพรีออเดอร์ ไม่สามารถเปลี่ยน/คืนสินค้าได้ ยกเว้นความผิดพลาดจากร้าน</li>
-            <li>กรณีเลือกจัดส่ง กรุณากรอกที่อยู่ให้ครบถ้วน</li>
-            <li>ทีมงานจะติดต่อยืนยันรายละเอียดการชำระเงินภายหลัง</li>
-          </ul>
-        </article>
+      <section id="preorder-form" className="mx-auto max-w-6xl scroll-mt-24 px-4 pb-14 md:px-6">
+        <PreorderForm key={selectedTeam} initialTeam={selectedTeam} />
       </section>
     </main>
   );
