@@ -134,19 +134,20 @@ export default async function PreorderPage({
           </div>
         </div>
 
-        <div className="overflow-hidden rounded-[28px] border border-white/10 bg-zinc-900 shadow-2xl shadow-red-950/30">
+        <div className="group overflow-hidden rounded-[28px] border border-white/10 bg-zinc-900 shadow-2xl shadow-red-950/30 transition duration-300 hover:-translate-y-1 hover:border-red-300/40 hover:shadow-red-950/50">
           {config.coverImageUrl ? (
-            <div className="bg-gradient-to-br from-zinc-800 via-zinc-950 to-red-950/70 p-3 sm:p-5">
-              <div
-                aria-label="Preorder cover image"
-                className="aspect-[4/3] rounded-2xl border border-white/15 bg-zinc-950 shadow-inner shadow-black/60"
-                style={{
-                  backgroundImage: `url("${config.coverImageUrl}")`,
-                  backgroundPosition: "center",
-                  backgroundSize: "contain",
-                  backgroundRepeat: "no-repeat",
-                }}
-              />
+            <div className="bg-gradient-to-br from-zinc-800 via-zinc-950 to-red-950/70 p-2 sm:p-3">
+              <div className="relative aspect-[4/3] overflow-hidden rounded-2xl border border-white/15 bg-zinc-950 shadow-inner shadow-black/60">
+                <div
+                  aria-label="Preorder cover image"
+                  className="absolute inset-0 scale-105 bg-cover bg-center transition duration-700 group-hover:scale-110"
+                  style={{
+                    backgroundImage: `url("${config.coverImageUrl}")`,
+                  }}
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/35 via-transparent to-white/5" />
+                <div className="absolute inset-0 ring-1 ring-inset ring-white/10" />
+              </div>
             </div>
           ) : (
             <div className="bg-gradient-to-br from-red-600 via-zinc-900 to-amber-500 p-6">
@@ -179,21 +180,22 @@ export default async function PreorderPage({
             <a
               key={product.key}
               href={`/preorder?team=${product.key}#preorder-form`}
-              className="group overflow-hidden rounded-2xl border border-white/10 bg-zinc-900 transition hover:-translate-y-0.5 hover:border-red-300/70 hover:bg-zinc-800"
+              className="group overflow-hidden rounded-2xl border border-white/10 bg-zinc-900 transition duration-300 hover:-translate-y-1 hover:border-red-300/70 hover:bg-zinc-800 hover:shadow-2xl hover:shadow-red-950/30"
             >
-              <div
-                className={`h-36 bg-gradient-to-br ${product.accent}`}
-                style={
-                  config.teamImageUrls[product.key]
-                    ? {
-                        backgroundImage: `linear-gradient(rgba(9,9,11,0.05), rgba(9,9,11,0.35)), url("${config.teamImageUrls[product.key]}")`,
-                        backgroundPosition: "center",
-                        backgroundSize: "contain",
-                        backgroundRepeat: "no-repeat",
-                      }
-                    : undefined
-                }
-              />
+              <div className={`relative h-52 overflow-hidden bg-gradient-to-br ${product.accent}`}>
+                <div
+                  className="absolute inset-0 bg-cover bg-center transition duration-700 group-hover:scale-110"
+                  style={
+                    config.teamImageUrls[product.key]
+                      ? {
+                          backgroundImage: `linear-gradient(rgba(9,9,11,0.02), rgba(9,9,11,0.22)), url("${config.teamImageUrls[product.key]}")`,
+                        }
+                      : undefined
+                  }
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-zinc-900 via-zinc-900/5 to-white/5" />
+                <div className="absolute inset-x-5 bottom-4 h-px bg-white/20 opacity-0 transition group-hover:opacity-100" />
+              </div>
               <div className="p-5">
                 <p className="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-400">
                   {product.shortName}
