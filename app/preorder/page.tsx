@@ -135,38 +135,41 @@ export default async function PreorderPage({
         </div>
 
         <div className="overflow-hidden rounded-[28px] border border-white/10 bg-zinc-900 shadow-2xl shadow-red-950/30">
-          <div
-            className="bg-gradient-to-br from-red-600 via-zinc-900 to-amber-500 p-6"
-            style={
-              config.coverImageUrl
-                ? {
-                    backgroundImage: `linear-gradient(rgba(9,9,11,0.1), rgba(9,9,11,0.45)), url("${config.coverImageUrl}")`,
-                    backgroundPosition: "center",
-                    backgroundSize: "contain",
-                    backgroundRepeat: "no-repeat",
-                  }
-                : undefined
-            }
-          >
-            <div className="aspect-[4/3] rounded-2xl border border-white/20 bg-black/25 p-5 backdrop-blur-sm">
-              <div className="flex h-full flex-col justify-between rounded-xl border border-white/20 bg-zinc-950/75 p-5">
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-[0.24em] text-amber-200">
-                    Jaturamit Ratchaburi
-                  </p>
-                  <p className="mt-3 text-4xl font-black">02</p>
-                </div>
-                <div>
-                  <div className="h-2 w-24 rounded-full bg-red-500" />
-                  <p className="mt-3 text-sm font-semibold text-zinc-200">
-                    {config.customFieldsEnabled
-                      ? "Custom name and number"
-                      : "Team preorder shirt"}
-                  </p>
+          {config.coverImageUrl ? (
+            <div className="bg-gradient-to-br from-zinc-800 via-zinc-950 to-red-950/70 p-3 sm:p-5">
+              <div
+                aria-label="Preorder cover image"
+                className="aspect-[4/3] rounded-2xl border border-white/15 bg-zinc-950 shadow-inner shadow-black/60"
+                style={{
+                  backgroundImage: `url("${config.coverImageUrl}")`,
+                  backgroundPosition: "center",
+                  backgroundSize: "contain",
+                  backgroundRepeat: "no-repeat",
+                }}
+              />
+            </div>
+          ) : (
+            <div className="bg-gradient-to-br from-red-600 via-zinc-900 to-amber-500 p-6">
+              <div className="aspect-[4/3] rounded-2xl border border-white/20 bg-black/25 p-5 backdrop-blur-sm">
+                <div className="flex h-full flex-col justify-between rounded-xl border border-white/20 bg-zinc-950/75 p-5">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-[0.24em] text-amber-200">
+                      Jaturamit Ratchaburi
+                    </p>
+                    <p className="mt-3 text-4xl font-black">02</p>
+                  </div>
+                  <div>
+                    <div className="h-2 w-24 rounded-full bg-red-500" />
+                    <p className="mt-3 text-sm font-semibold text-zinc-200">
+                      {config.customFieldsEnabled
+                        ? "Custom name and number"
+                        : "Team preorder shirt"}
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
       </section>
 
