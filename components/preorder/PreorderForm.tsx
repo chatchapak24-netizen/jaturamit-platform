@@ -56,10 +56,8 @@ const inputClass =
   "w-full rounded-xl border border-white/10 bg-zinc-950 px-4 py-3 text-white outline-none transition placeholder:text-zinc-600 focus:border-red-300";
 
 export default function PreorderForm({
-  customFieldsEnabled = true,
   initialTeam = initialState.team,
 }: {
-  customFieldsEnabled?: boolean;
   initialTeam?: TeamValue;
 }) {
   const [form, setForm] = useState<FormState>({
@@ -81,12 +79,8 @@ export default function PreorderForm({
     if (!form.phone.trim()) return setErrorText("กรุณากรอกเบอร์โทร");
     if (!form.team) return setErrorText("กรุณาเลือกทีม");
     if (!form.size) return setErrorText("กรุณาเลือกไซส์");
-    if (customFieldsEnabled && !form.shirt_name.trim()) {
-      return setErrorText("กรุณากรอกชื่อบนเสื้อ");
-    }
-    if (customFieldsEnabled && !form.shirt_number.trim()) {
-      return setErrorText("กรุณากรอกเบอร์เสื้อ");
-    }
+    if (!form.shirt_name.trim()) return setErrorText("กรุณากรอกชื่อบนเสื้อ");
+    if (!form.shirt_number.trim()) return setErrorText("กรุณากรอกเบอร์เสื้อ");
     if (!form.quantity || form.quantity <= 0) {
       return setErrorText("จำนวนต้องมากกว่า 0");
     }
@@ -100,8 +94,8 @@ export default function PreorderForm({
       phone: form.phone.trim(),
       team: form.team,
       size: form.size,
-      shirt_name: customFieldsEnabled ? form.shirt_name.trim() : "",
-      shirt_number: customFieldsEnabled ? form.shirt_number.trim() : "",
+      shirt_name: form.shirt_name.trim(),
+      shirt_number: form.shirt_number.trim(),
       quantity: form.quantity,
       delivery_method: form.delivery_method,
       address: form.delivery_method === "shipping" ? form.address.trim() : null,
@@ -204,36 +198,28 @@ export default function PreorderForm({
           </select>
         </Field>
 
-        {customFieldsEnabled ? (
-          <>
-            <Field label="ชื่อบนเสื้อ" required>
-              <input
-                className={inputClass}
-                value={form.shirt_name}
-                onChange={(event) =>
-                  setForm({ ...form, shirt_name: event.target.value })
-                }
-                required
-              />
-            </Field>
+        <Field label="ชื่อบนเสื้อ" required>
+          <input
+            className={inputClass}
+            value={form.shirt_name}
+            onChange={(event) =>
+              setForm({ ...form, shirt_name: event.target.value })
+            }
+            required
+          />
+        </Field>
 
-            <Field label="เบอร์เสื้อ" required>
-              <input
-                className={inputClass}
-                inputMode="numeric"
-                value={form.shirt_number}
-                onChange={(event) =>
-                  setForm({ ...form, shirt_number: event.target.value })
-                }
-                required
-              />
-            </Field>
-          </>
-        ) : (
-          <div className="rounded-xl border border-white/10 bg-zinc-950 p-4 text-sm leading-6 text-zinc-300 md:col-span-2">
-            ตอนนี้ปิดการกรอกชื่อและเบอร์หลังเสื้อจากหลังบ้าน
-          </div>
-        )}
+        <Field label="เบอร์เสื้อ" required>
+          <input
+            className={inputClass}
+            inputMode="numeric"
+            value={form.shirt_number}
+            onChange={(event) =>
+              setForm({ ...form, shirt_number: event.target.value })
+            }
+            required
+          />
+        </Field>
 
         <Field label="จำนวน" required>
           <input

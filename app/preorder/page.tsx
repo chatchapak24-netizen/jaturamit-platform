@@ -1,5 +1,4 @@
 import PreorderForm, { type TeamValue } from "@/components/preorder/PreorderForm";
-import { supabase } from "@/lib/supabase";
 
 const PRODUCTS: Array<{
   key: TeamValue;
@@ -44,22 +43,15 @@ const SIZE_CHART = [
   ["5XL", "50", "33"],
 ] as const;
 
+const TERMS = [
+  "สินค้าเป็นงานพรีออเดอร์ ผลิตตามรายการสั่งซื้อ",
+  "ตรวจสอบไซส์ ชื่อ และเบอร์ก่อนยืนยัน",
+  "หลังปิดรอบพรีออเดอร์ไม่สามารถแก้ไขได้",
+  "ไม่รับเปลี่ยนคืนกรณีเลือกไซส์ผิด",
+] as const;
+
 function isTeamValue(value: unknown): value is TeamValue {
   return PRODUCTS.some((product) => product.key === value);
-}
-
-async function getPreorderCustomFieldsEnabled() {
-  const { data, error } = await supabase
-    .from("site_settings")
-    .select("value")
-    .eq("key", "preorder_custom_fields_enabled")
-    .maybeSingle();
-
-  if (error) {
-    return true;
-  }
-
-  return data?.value !== "false";
 }
 
 export default async function PreorderPage({
@@ -67,7 +59,6 @@ export default async function PreorderPage({
 }: {
   searchParams: Promise<{ team?: string | string[] | undefined }>;
 }) {
-  const customFieldsEnabled = await getPreorderCustomFieldsEnabled();
   const teamParam = (await searchParams).team;
   const requestedTeam = Array.isArray(teamParam) ? teamParam[0] : teamParam;
   const selectedTeam: TeamValue = isTeamValue(requestedTeam)
@@ -192,12 +183,22 @@ export default async function PreorderPage({
         </article>
       </section>
 
-      <section id="preorder-form" className="mx-auto max-w-6xl scroll-mt-24 px-4 pb-14 md:px-6">
-        <PreorderForm
-          key={`${selectedTeam}-${customFieldsEnabled}`}
-          customFieldsEnabled={customFieldsEnabled}
-          initialTeam={selectedTeam}
-        />
+      <section className="mx-auto max-w-6xl px-4 pb-8 md:px-6">
+        <article className="rounded-2xl border border-amber-300/20 bg-amber-300/5 p-5 text-amber-50 md:p-6">
+          <h2 className="text-xl font-black">เงื่อนไขการสั่งซื้อ</h2>
+          <ul className="mt-4 space-y-3 text-sm leading-6 text-amber-100/90">
+            {TERMS.map((term) => (
+              <li key={term}>{term}</li>
+            ))}
+          </ul>
+        </article>
+      </section>
+
+      <section
+        id="preorder-form"
+        className="mx-auto max-w-6xl scroll-mt-24 px-4 pb-14 md:px-6"
+      >
+        <PreorderForm key={selectedTeam} initialTeam={selectedTeam} />
       </section>
     </main>
   );
