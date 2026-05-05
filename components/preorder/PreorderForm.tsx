@@ -74,7 +74,6 @@ export default function PreorderForm({
     [form.product_id, products],
   );
   const selectedTeam = selectedProduct?.team || null;
-  const centralProductDisabled = Boolean(selectedProduct && !selectedTeam);
   const totalPreview = useMemo(
     () => (selectedProduct?.price || 0) * form.quantity,
     [form.quantity, selectedProduct?.price],
@@ -102,11 +101,6 @@ export default function PreorderForm({
     if (!form.full_name.trim()) return setErrorText("กรุณากรอกชื่อ-นามสกุล");
     if (!form.phone.trim()) return setErrorText("กรุณากรอกเบอร์โทร");
     if (!selectedProduct) return setErrorText("กรุณาเลือกสินค้า");
-    if (!selectedTeam) {
-      return setErrorText(
-        "สินค้ากลางยังไม่เปิดให้สั่งซื้อในรอบนี้ กรุณาเลือกสินค้าที่ผูกทีม",
-      );
-    }
     if (selectedProduct.requires_size && !form.size) {
       return setErrorText("กรุณาเลือกไซส์");
     }
@@ -135,19 +129,19 @@ export default function PreorderForm({
     setSubmitting(true);
 
     try {
-      const { error } = await supabaseBrowser.rpc("create_preorder_order", {
+      const { data, error } = await supabaseBrowser.rpc("create_preorder_order", {
         p_campaign_id: campaign.id,
         p_product_id: selectedProduct.id,
         p_full_name: form.full_name.trim(),
         p_phone: form.phone.trim(),
-        p_size: selectedProduct.requires_size ? form.size : null,
-        p_shirt_name: selectedProduct.allows_custom_name
-          ? form.shirt_name.trim()
-          : "",
-        p_shirt_number: selectedProduct.allows_custom_number
-          ? form.shirt_number.trim()
-          : "",
         p_quantity: form.quantity,
+        p_size: selectedProduct.requires_size ? form.size : null,
+        p_custom_name: selectedProduct.allows_custom_name
+          ? form.shirt_name.trim()
+          : null,
+        p_custom_number: selectedProduct.allows_custom_number
+          ? form.shirt_number.trim()
+          : null,
         p_delivery_method: form.delivery_method,
         p_address:
           form.delivery_method === "shipping" ? form.address.trim() : null,
@@ -160,8 +154,13 @@ export default function PreorderForm({
         return;
       }
 
+      const orderCode =
+        Array.isArray(data) && data[0]?.order_code
+          ? ` เลขออเดอร์ ${data[0].order_code}`
+          : "";
+
       setSuccessText(
-        "ระบบได้รับข้อมูลการสั่งซื้อเรียบร้อยแล้ว กรุณาส่งสลิปทาง LINE OA ลิงชิงบอล สปอร์ต พร้อมแจ้งชื่อและเบอร์โทร แอดมินจะตรวจสอบยอดและยืนยันออเดอร์อีกครั้ง",
+        `ระบบได้รับข้อมูลการสั่งซื้อเรียบร้อยแล้ว${orderCode} กรุณาส่งสลิปทาง LINE OA ลิงชิงบอล สปอร์ต พร้อมแจ้งชื่อและเบอร์โทร แอดมินจะตรวจสอบยอดและยืนยันออเดอร์อีกครั้ง`,
       );
       setForm(createInitialState(form.product_id));
     } catch {
@@ -195,12 +194,6 @@ export default function PreorderForm({
           ราคา {selectedProduct?.price || 0} บาท/ชิ้น รวม {totalPreview} บาท
         </div>
       </div>
-
-      {centralProductDisabled ? (
-        <p className="mt-5 rounded-xl border border-amber-400/40 bg-amber-950/40 p-4 text-sm text-amber-100">
-          สินค้ากลางแสดงได้แล้ว แต่ยังไม่เปิดให้ submit ใน PR นี้เพื่อรักษา compatibility กับ field team เดิม
-        </p>
-      ) : null}
 
       <div className="mt-5 grid gap-4 md:grid-cols-2">
         <Field label="สินค้า" required>
@@ -380,7 +373,7 @@ export default function PreorderForm({
 
       <button
         type="submit"
-        disabled={submitting || centralProductDisabled}
+        disabled={submitting}
         className="mt-5 w-full rounded-xl bg-red-600 px-5 py-4 text-base font-black text-white transition hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-60"
       >
         {submitting ? "กำลังส่งคำสั่งซื้อ..." : "ยืนยันการสั่งซื้อ"}

@@ -24,6 +24,7 @@ Run the SQL file in Supabase SQL Editor:
 
 ```text
 supabase/migrations/20260505_preorder_foundation.sql
+supabase/migrations/20260506_preorder_secure_order_write.sql
 ```
 
 The migration is additive and uses upserts for seed data so it can be rerun without duplicating the seeded campaign, teams, or products.
