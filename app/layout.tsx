@@ -44,6 +44,9 @@ export default function RootLayout({
   <Link href="/news" className="hover:text-white">
   ข่าว
 </Link>
+<Link href="/preorder" className="font-bold text-red-200 hover:text-white">
+  พรีออเดอร์
+</Link>
 <Link href="/sponsors" className="hover:text-white">
   สปอนเซอร์
 </Link>
