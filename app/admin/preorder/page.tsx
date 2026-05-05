@@ -14,6 +14,13 @@ type SettingRow = {
   value: string | null;
 };
 
+const TEAM_IMAGE_FIELDS = [
+  { key: "photha", label: "โพธา" },
+  { key: "benjamarachutit", label: "เบญจมราชูทิศ" },
+  { key: "daruna", label: "ดรุณาราชบุรี" },
+  { key: "sarasit", label: "สารสิทธิ์พิทยาลัย" },
+] as const;
+
 export default function AdminPreorderPage() {
   const router = useRouter();
 
@@ -192,14 +199,14 @@ export default function AdminPreorderPage() {
 
             <label className="block">
               <span className="text-sm font-bold text-zinc-200">
-                ลิงก์รูปสินค้า
+                ลิงก์รูปปกหน้า preorder
               </span>
               <input
-                value={config.productImageUrl}
+                value={config.coverImageUrl}
                 onChange={(event) =>
                   setConfig({
                     ...config,
-                    productImageUrl: event.target.value,
+                    coverImageUrl: event.target.value,
                   })
                 }
                 placeholder="https://..."
@@ -209,6 +216,37 @@ export default function AdminPreorderPage() {
                 ใช้ URL รูปที่เปิด public ได้ เช่น รูปจาก Supabase Storage หรือ CDN
               </span>
             </label>
+
+            <div className="rounded-2xl border border-white/10 bg-zinc-950 p-4">
+              <h3 className="font-black text-white">รูปสินค้าแยกตามทีม</h3>
+              <p className="mt-1 text-sm text-zinc-400">
+                ใส่รูปเสื้อของแต่ละโรงเรียน เช่น ดรุณาใช้รูปเสื้อดรุณา
+              </p>
+
+              <div className="mt-4 grid gap-4">
+                {TEAM_IMAGE_FIELDS.map((team) => (
+                  <label key={team.key} className="block">
+                    <span className="text-sm font-bold text-zinc-200">
+                      รูปเสื้อ{team.label}
+                    </span>
+                    <input
+                      value={config.teamImageUrls[team.key]}
+                      onChange={(event) =>
+                        setConfig({
+                          ...config,
+                          teamImageUrls: {
+                            ...config.teamImageUrls,
+                            [team.key]: event.target.value,
+                          },
+                        })
+                      }
+                      placeholder="https://..."
+                      className="mt-2 w-full rounded-xl border border-white/10 bg-zinc-950 px-4 py-3 text-white outline-none focus:border-red-300"
+                    />
+                  </label>
+                ))}
+              </div>
+            </div>
 
             <ToggleRow
               title="เปิดช่องชื่อบนเสื้อและเบอร์เสื้อ"
@@ -237,11 +275,12 @@ export default function AdminPreorderPage() {
           <div
             className="aspect-[4/3] bg-gradient-to-br from-red-600 via-zinc-900 to-amber-500"
             style={
-              config.productImageUrl
+              config.coverImageUrl
                 ? {
-                    backgroundImage: `linear-gradient(rgba(9,9,11,0.2), rgba(9,9,11,0.7)), url("${config.productImageUrl}")`,
+                    backgroundImage: `linear-gradient(rgba(9,9,11,0.05), rgba(9,9,11,0.35)), url("${config.coverImageUrl}")`,
                     backgroundPosition: "center",
-                    backgroundSize: "cover",
+                    backgroundSize: "contain",
+                    backgroundRepeat: "no-repeat",
                   }
                 : undefined
             }
@@ -255,6 +294,40 @@ export default function AdminPreorderPage() {
                 : "ปิดช่องชื่อบนเสื้อและเบอร์เสื้อ"}
             </p>
           </div>
+        </div>
+      </section>
+
+      <section className="mt-6 rounded-3xl border border-white/10 bg-zinc-900 p-5 sm:p-6">
+        <h2 className="text-2xl font-black">ตัวอย่างรูปสินค้าแต่ละทีม</h2>
+        <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {TEAM_IMAGE_FIELDS.map((team) => (
+            <div
+              key={team.key}
+              className="overflow-hidden rounded-2xl border border-white/10 bg-zinc-950"
+            >
+              <div
+                className="aspect-[4/3] bg-zinc-900"
+                style={
+                  config.teamImageUrls[team.key]
+                    ? {
+                        backgroundImage: `linear-gradient(rgba(9,9,11,0.05), rgba(9,9,11,0.35)), url("${config.teamImageUrls[team.key]}")`,
+                        backgroundPosition: "center",
+                        backgroundSize: "contain",
+                        backgroundRepeat: "no-repeat",
+                      }
+                    : undefined
+                }
+              />
+              <div className="p-4">
+                <p className="font-bold text-white">{team.label}</p>
+                <p className="mt-1 text-xs text-zinc-500">
+                  {config.teamImageUrls[team.key]
+                    ? "ตั้งรูปแล้ว"
+                    : "ยังไม่ได้ตั้งรูป"}
+                </p>
+              </div>
+            </div>
+          ))}
         </div>
       </section>
 

@@ -8,14 +8,23 @@ export type PreorderRequiredFields = {
 
 export type PreorderConfig = {
   unitPrice: number;
+  coverImageUrl: string;
   productImageUrl: string;
+  teamImageUrls: Record<string, string>;
   customFieldsEnabled: boolean;
   requiredFields: PreorderRequiredFields;
 };
 
 export const DEFAULT_PREORDER_CONFIG: PreorderConfig = {
   unitPrice: 390,
+  coverImageUrl: "",
   productImageUrl: "",
+  teamImageUrls: {
+    photha: "",
+    benjamarachutit: "",
+    daruna: "",
+    sarasit: "",
+  },
   customFieldsEnabled: true,
   requiredFields: {
     shirtName: true,
@@ -56,6 +65,10 @@ function parseConfig(rawValue: unknown) {
   return {};
 }
 
+function normalizeText(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
 export function normalizePreorderConfig(
   rawValue: unknown,
   legacyCustomFieldsEnabled?: boolean,
@@ -65,6 +78,10 @@ export function normalizePreorderConfig(
     typeof parsed.requiredFields === "object" && parsed.requiredFields
       ? (parsed.requiredFields as Record<string, unknown>)
       : {};
+  const teamImageUrls =
+    typeof parsed.teamImageUrls === "object" && parsed.teamImageUrls
+      ? (parsed.teamImageUrls as Record<string, unknown>)
+      : {};
   const customFieldsEnabled = normalizeBoolean(
     parsed.customFieldsEnabled,
     legacyCustomFieldsEnabled ?? DEFAULT_PREORDER_CONFIG.customFieldsEnabled,
@@ -72,10 +89,15 @@ export function normalizePreorderConfig(
 
   return {
     unitPrice: normalizePrice(parsed.unitPrice),
-    productImageUrl:
-      typeof parsed.productImageUrl === "string"
-        ? parsed.productImageUrl.trim()
-        : DEFAULT_PREORDER_CONFIG.productImageUrl,
+    coverImageUrl:
+      normalizeText(parsed.coverImageUrl) || normalizeText(parsed.productImageUrl),
+    productImageUrl: normalizeText(parsed.productImageUrl),
+    teamImageUrls: {
+      photha: normalizeText(teamImageUrls.photha),
+      benjamarachutit: normalizeText(teamImageUrls.benjamarachutit),
+      daruna: normalizeText(teamImageUrls.daruna),
+      sarasit: normalizeText(teamImageUrls.sarasit),
+    },
     customFieldsEnabled,
     requiredFields: {
       shirtName: customFieldsEnabled
