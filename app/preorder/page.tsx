@@ -182,18 +182,18 @@ export default async function PreorderPage({
               href={`/preorder?team=${product.key}#preorder-form`}
               className="group overflow-hidden rounded-2xl border border-white/10 bg-zinc-900 transition duration-300 hover:-translate-y-1 hover:border-red-300/70 hover:bg-zinc-800 hover:shadow-2xl hover:shadow-red-950/30"
             >
-              <div className={`relative h-52 overflow-hidden bg-gradient-to-br ${product.accent}`}>
+              <div className={`relative h-64 overflow-hidden bg-gradient-to-br ${product.accent} sm:h-72 lg:h-64`}>
                 <div
-                  className="absolute inset-0 bg-cover bg-center transition duration-700 group-hover:scale-110"
+                  className="absolute inset-3 bg-contain bg-center bg-no-repeat transition duration-700 group-hover:scale-105 sm:inset-4"
                   style={
                     config.teamImageUrls[product.key]
                       ? {
-                          backgroundImage: `linear-gradient(rgba(9,9,11,0.02), rgba(9,9,11,0.22)), url("${config.teamImageUrls[product.key]}")`,
+                          backgroundImage: `url("${config.teamImageUrls[product.key]}")`,
                         }
                       : undefined
                   }
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-zinc-900 via-zinc-900/5 to-white/5" />
+                <div className="absolute inset-0 bg-gradient-to-t from-zinc-900 via-zinc-900/10 to-white/5" />
                 <div className="absolute inset-x-5 bottom-4 h-px bg-white/20 opacity-0 transition group-hover:opacity-100" />
               </div>
               <div className="p-5">
