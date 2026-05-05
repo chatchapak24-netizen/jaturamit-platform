@@ -1,4 +1,5 @@
 import PreorderForm, { type TeamValue } from "@/components/preorder/PreorderForm";
+import { supabase } from "@/lib/supabase";
 
 const PRODUCTS: Array<{
   key: TeamValue;
@@ -47,11 +48,26 @@ function isTeamValue(value: unknown): value is TeamValue {
   return PRODUCTS.some((product) => product.key === value);
 }
 
+async function getPreorderCustomFieldsEnabled() {
+  const { data, error } = await supabase
+    .from("site_settings")
+    .select("value")
+    .eq("key", "preorder_custom_fields_enabled")
+    .maybeSingle();
+
+  if (error) {
+    return true;
+  }
+
+  return data?.value !== "false";
+}
+
 export default async function PreorderPage({
   searchParams,
 }: {
   searchParams: Promise<{ team?: string | string[] | undefined }>;
 }) {
+  const customFieldsEnabled = await getPreorderCustomFieldsEnabled();
   const teamParam = (await searchParams).team;
   const requestedTeam = Array.isArray(teamParam) ? teamParam[0] : teamParam;
   const selectedTeam: TeamValue = isTeamValue(requestedTeam)
@@ -177,7 +193,11 @@ export default async function PreorderPage({
       </section>
 
       <section id="preorder-form" className="mx-auto max-w-6xl scroll-mt-24 px-4 pb-14 md:px-6">
-        <PreorderForm key={selectedTeam} initialTeam={selectedTeam} />
+        <PreorderForm
+          key={`${selectedTeam}-${customFieldsEnabled}`}
+          customFieldsEnabled={customFieldsEnabled}
+          initialTeam={selectedTeam}
+        />
       </section>
     </main>
   );
