@@ -99,6 +99,15 @@ export default function AdminDashboardPage() {
     เปิด/ปิดช่องชื่อบนเสื้อและเบอร์เสื้อในฟอร์มสั่งซื้อ
   </p>
 </Link>
+<Link
+  href="/admin/preorders"
+  className="rounded-3xl border border-white/10 bg-zinc-900 p-6 hover:border-red-400/50"
+>
+  <h2 className="text-2xl font-black">พรีออเดอร์เสื้อ</h2>
+  <p className="mt-3 text-sm text-zinc-400">
+    ดูรายการสั่งซื้อ กรองออเดอร์ และอัปเดตสถานะงานพรีออเดอร์
+  </p>
+</Link>
         <Link
   href="/admin/players"
   className="rounded-3xl border border-white/10 bg-zinc-900 p-6 hover:border-red-400/50"
