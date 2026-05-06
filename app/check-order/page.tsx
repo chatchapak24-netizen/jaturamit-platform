@@ -2,41 +2,70 @@
 
 import Link from "next/link";
 import { FormEvent, useState } from "react";
+import { supabaseBrowser } from "@/lib/supabase-browser";
 
-type SafeOrder = {
+type LookupOrder = {
   order_code: string | null;
-  team: string | null;
-  size: string | null;
-  shirt_name: string | null;
-  shirt_number: string | null;
-  quantity: number | null;
-  delivery_method: string | null;
   status: string | null;
   created_at: string | null;
   updated_at: string | null;
+  total_amount: number | null;
+  delivery_method: string | null;
+  has_shipping_address?: boolean | null;
 };
 
-const teamLabels: Record<string, string> = {
-  photha: "โพธา",
-  benjamarachutit: "เบญจมราชูทิศ",
-  daruna: "ดรุณาราชบุรี",
-  sarasit: "สารสิทธิ์พิทยาลัย",
+type LookupItem = {
+  product_name_snapshot: string | null;
+  team_name_snapshot: string | null;
+  product_type_snapshot: string | null;
+  size: string | null;
+  custom_name: string | null;
+  custom_number: string | null;
+  quantity: number | null;
+  line_total: number | null;
 };
 
-const deliveryLabels: Record<string, string> = {
-  pickup: "รับเอง",
-  shipping: "จัดส่ง",
+type LookupResult = {
+  order: LookupOrder;
+  items: LookupItem[];
 };
 
 const statusLabels: Record<string, string> = {
-  pending: "รอตรวจสอบ",
-  paid: "ชำระแล้ว",
-  confirmed: "ยืนยันแล้ว",
+  pending: "รอตรวจสอบยอด",
+  paid: "ชำระเงินแล้ว",
+  confirmed: "ยืนยันออเดอร์แล้ว",
   production: "กำลังผลิต",
-  ready: "พร้อมรับ/ส่ง",
+  ready: "พร้อมรับสินค้า",
   shipped: "จัดส่งแล้ว",
   cancelled: "ยกเลิก",
 };
+
+const deliveryLabels: Record<string, string> = {
+  pickup: "รับที่หน้างาน",
+  shipping: "จัดส่ง",
+};
+
+const productTypeLabels: Record<string, string> = {
+  jersey: "เสื้อแข่ง",
+  shorts: "กางเกง",
+  socks: "ถุงเท้า",
+  training_shirt: "เสื้อซ้อม",
+  scarf: "ผ้าพันคอ",
+  souvenir: "ของที่ระลึก",
+  other: "อื่น ๆ",
+};
+
+function statusLabel(status: string | null) {
+  return status ? statusLabels[status] || status : "-";
+}
+
+function deliveryLabel(method: string | null) {
+  return method ? deliveryLabels[method] || method : "-";
+}
+
+function productTypeLabel(type: string | null) {
+  return type ? productTypeLabels[type] || type : "-";
+}
 
 function formatDate(value: string | null) {
   if (!value) return "-";
@@ -47,10 +76,12 @@ function formatDate(value: string | null) {
   }).format(new Date(value));
 }
 
-function labelFromMap(map: Record<string, string>, value: string | null) {
-  if (!value) return "-";
-
-  return map[value] || value;
+function formatMoney(value: number | null) {
+  return new Intl.NumberFormat("th-TH", {
+    style: "currency",
+    currency: "THB",
+    maximumFractionDigits: 0,
+  }).format(value || 0);
 }
 
 function statusClass(status: string | null) {
@@ -70,95 +101,97 @@ function statusClass(status: string | null) {
   }
 }
 
+function safeText(value: string | null) {
+  return value?.trim() || "-";
+}
+
 export default function CheckOrderPage() {
   const [orderCode, setOrderCode] = useState("");
   const [phone, setPhone] = useState("");
-  const [order, setOrder] = useState<SafeOrder | null>(null);
+  const [result, setResult] = useState<LookupResult | null>(null);
   const [loading, setLoading] = useState(false);
-  const [errorText, setErrorText] = useState("");
+  const [message, setMessage] = useState("");
+  const [notFound, setNotFound] = useState(false);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setErrorText("");
-    setOrder(null);
+    setMessage("");
+    setNotFound(false);
+    setResult(null);
 
     const cleanOrderCode = orderCode.trim();
     const cleanPhone = phone.trim();
 
     if (!cleanOrderCode || !cleanPhone) {
-      setErrorText("กรุณากรอกเลขออเดอร์และเบอร์โทร");
+      setMessage("กรุณากรอกรหัสออเดอร์และเบอร์โทรให้ครบ");
       return;
     }
 
     setLoading(true);
 
-    const response = await fetch("/api/check-order", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        order_code: cleanOrderCode,
-        phone: cleanPhone,
-      }),
+    const { data, error } = await supabaseBrowser.rpc("lookup_preorder_status", {
+      p_order_code: cleanOrderCode,
+      p_phone: cleanPhone,
     });
-    const result = (await response.json()) as {
-      order?: SafeOrder;
-      error?: string;
-    };
 
-    if (!response.ok || !result.order) {
-      setErrorText(result.error || "ไม่สามารถตรวจสอบออเดอร์ได้");
-      setLoading(false);
+    setLoading(false);
+
+    if (error) {
+      setMessage("ไม่สามารถตรวจสอบออเดอร์ได้ กรุณาลองใหม่อีกครั้ง");
       return;
     }
 
-    setOrder(result.order);
-    setLoading(false);
+    if (!data) {
+      setNotFound(true);
+      return;
+    }
+
+    setResult(data as LookupResult);
   }
 
   return (
     <main className="min-h-screen bg-zinc-950 text-white">
-      <section className="mx-auto grid max-w-6xl gap-8 px-4 py-8 sm:px-6 lg:grid-cols-[0.9fr_1.1fr] lg:py-14">
-        <div className="flex flex-col justify-between rounded-[2rem] border border-white/10 bg-zinc-900 p-6 sm:p-8">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.3em] text-red-300">
-              Preorder Status
-            </p>
-            <h1 className="mt-4 text-4xl font-black leading-tight sm:text-5xl">
-              เช็กสถานะออเดอร์เสื้อ
-            </h1>
-            <p className="mt-4 text-zinc-400">
-              กรอกเลขออเดอร์และเบอร์โทรที่ใช้สั่งซื้อ ระบบจะแสดงเฉพาะข้อมูลออเดอร์ที่ตรงกันเท่านั้น
-            </p>
-          </div>
+      <section className="mx-auto grid max-w-6xl gap-6 px-4 py-8 sm:px-6 lg:grid-cols-[0.9fr_1.1fr] lg:py-14">
+        <div className="rounded-[2rem] border border-white/10 bg-zinc-900 p-6 shadow-2xl sm:p-8">
+          <p className="text-sm font-semibold uppercase tracking-[0.35em] text-red-300">
+            Order Status
+          </p>
+          <h1 className="mt-4 text-4xl font-black leading-tight sm:text-5xl">
+            ตรวจสอบสถานะออเดอร์
+          </h1>
+          <p className="mt-4 text-sm leading-7 text-zinc-400 sm:text-base">
+            กรอกรหัสออเดอร์และเบอร์โทรที่ใช้สั่งซื้อ ระบบจะแสดงเฉพาะออเดอร์
+            ที่ข้อมูลทั้งสองรายการตรงกันเท่านั้น
+          </p>
 
           <div className="mt-8 grid gap-3 text-sm text-zinc-300">
             <div className="rounded-2xl border border-white/10 bg-zinc-950 p-4">
-              ต้องใช้ทั้งเลขออเดอร์และเบอร์โทร ไม่สามารถค้นด้วยเบอร์โทรอย่างเดียวได้
+              ไม่สามารถค้นหาด้วยเบอร์โทรอย่างเดียว หรือรหัสออเดอร์อย่างเดียวได้
             </div>
             <div className="rounded-2xl border border-white/10 bg-zinc-950 p-4">
-              หน้านี้ไม่แสดงที่อยู่เต็มหรือข้อมูลการชำระเงินแบบละเอียด
+              หน้านี้ไม่แสดงที่อยู่เต็มหรือรายละเอียดการชำระเงิน เพื่อปกป้องข้อมูลลูกค้า
             </div>
           </div>
 
           <Link
             href="/preorder"
-            className="mt-8 inline-flex w-fit rounded-2xl border border-white/10 px-5 py-3 text-sm font-bold text-zinc-200 hover:bg-white/10"
+            className="mt-8 inline-flex rounded-2xl border border-white/10 px-5 py-3 text-sm font-bold text-zinc-200 hover:bg-white/10"
           >
-            ไปหน้าสั่งซื้อ
+            กลับไปหน้าพรีออเดอร์
           </Link>
         </div>
 
         <div className="rounded-[2rem] border border-white/10 bg-zinc-900 p-5 shadow-2xl sm:p-8">
-          <form onSubmit={handleSubmit} className="grid gap-4">
+          <form onSubmit={handleSubmit} className="grid gap-4" noValidate>
             <label className="block">
-              <span className="text-sm font-bold text-zinc-200">เลขออเดอร์</span>
+              <span className="text-sm font-bold text-zinc-200">
+                รหัสออเดอร์
+              </span>
               <input
                 value={orderCode}
                 onChange={(event) => setOrderCode(event.target.value)}
                 placeholder="เช่น PRE-0001"
-                className="mt-2 w-full rounded-2xl border border-white/10 bg-zinc-950 px-4 py-4 text-white outline-none focus:border-red-400"
+                className="mt-2 w-full rounded-2xl border border-white/10 bg-zinc-950 px-4 py-4 text-white outline-none transition placeholder:text-zinc-600 focus:border-red-400"
               />
             </label>
 
@@ -168,15 +201,22 @@ export default function CheckOrderPage() {
                 value={phone}
                 onChange={(event) => setPhone(event.target.value)}
                 placeholder="เบอร์โทรที่ใช้สั่งซื้อ"
-                className="mt-2 w-full rounded-2xl border border-white/10 bg-zinc-950 px-4 py-4 text-white outline-none focus:border-red-400"
+                inputMode="tel"
+                className="mt-2 w-full rounded-2xl border border-white/10 bg-zinc-950 px-4 py-4 text-white outline-none transition placeholder:text-zinc-600 focus:border-red-400"
               />
             </label>
 
-            {errorText && (
+            {message ? (
               <div className="rounded-2xl border border-red-500/40 bg-red-950/40 p-4 text-sm text-red-100">
-                {errorText}
+                {message}
               </div>
-            )}
+            ) : null}
+
+            {notFound ? (
+              <div className="rounded-2xl border border-amber-500/40 bg-amber-950/40 p-4 text-sm text-amber-100">
+                ไม่พบออเดอร์ กรุณาตรวจสอบรหัสออเดอร์และเบอร์โทรอีกครั้ง
+              </div>
+            ) : null}
 
             <button
               type="submit"
@@ -187,92 +227,94 @@ export default function CheckOrderPage() {
             </button>
           </form>
 
-          {order && (
-            <section className="mt-8 rounded-3xl border border-white/10 bg-zinc-950 p-5">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-[0.25em] text-zinc-500">
-                    Order
-                  </p>
-                  <h2 className="mt-2 text-3xl font-black">
-                    {order.order_code || "-"}
-                  </h2>
-                </div>
-                <span
-                  className={`inline-flex w-fit rounded-full border px-4 py-2 text-sm font-black ${statusClass(
-                    order.status,
-                  )}`}
-                >
-                  {labelFromMap(statusLabels, order.status)}
-                </span>
-              </div>
-
-              <dl className="mt-6 grid gap-4 sm:grid-cols-2">
-                <div>
-                  <dt className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">
-                    Team
-                  </dt>
-                  <dd className="mt-2 text-zinc-100">
-                    {labelFromMap(teamLabels, order.team)}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">
-                    Size
-                  </dt>
-                  <dd className="mt-2 text-zinc-100">{order.size || "-"}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">
-                    Shirt Name
-                  </dt>
-                  <dd className="mt-2 text-zinc-100">
-                    {order.shirt_name || "-"}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">
-                    Shirt Number
-                  </dt>
-                  <dd className="mt-2 text-zinc-100">
-                    {order.shirt_number || "-"}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">
-                    Quantity
-                  </dt>
-                  <dd className="mt-2 text-zinc-100">{order.quantity || 0}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">
-                    Delivery
-                  </dt>
-                  <dd className="mt-2 text-zinc-100">
-                    {labelFromMap(deliveryLabels, order.delivery_method)}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">
-                    Created
-                  </dt>
-                  <dd className="mt-2 text-zinc-100">
-                    {formatDate(order.created_at)}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">
-                    Updated
-                  </dt>
-                  <dd className="mt-2 text-zinc-100">
-                    {formatDate(order.updated_at)}
-                  </dd>
-                </div>
-              </dl>
-            </section>
-          )}
+          {result ? <LookupResultCard result={result} /> : null}
         </div>
       </section>
     </main>
+  );
+}
+
+function LookupResultCard({ result }: { result: LookupResult }) {
+  const order = result.order;
+
+  return (
+    <section className="mt-8 rounded-3xl border border-white/10 bg-zinc-950 p-5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.25em] text-zinc-500">
+            Order
+          </p>
+          <h2 className="mt-2 text-3xl font-black">
+            {safeText(order.order_code)}
+          </h2>
+        </div>
+        <span
+          className={`inline-flex w-fit rounded-full border px-4 py-2 text-sm font-black ${statusClass(
+            order.status,
+          )}`}
+        >
+          {statusLabel(order.status)}
+        </span>
+      </div>
+
+      <dl className="mt-6 grid gap-4 sm:grid-cols-2">
+        <Detail label="วันที่สั่ง" value={formatDate(order.created_at)} />
+        <Detail label="อัปเดตล่าสุด" value={formatDate(order.updated_at)} />
+        <Detail label="วิธีรับสินค้า" value={deliveryLabel(order.delivery_method)} />
+        <Detail label="ยอดรวม" value={formatMoney(order.total_amount)} />
+        {order.delivery_method === "shipping" ? (
+          <Detail
+            label="ข้อมูลจัดส่ง"
+            value={
+              order.has_shipping_address
+                ? "มีข้อมูลจัดส่งแล้ว"
+                : "ยังไม่มีข้อมูลจัดส่ง"
+            }
+          />
+        ) : null}
+      </dl>
+
+      <div className="mt-6 space-y-3">
+        <h3 className="text-lg font-black">รายการสินค้า</h3>
+        {result.items.map((item, index) => (
+          <div
+            key={`${item.product_name_snapshot}-${index}`}
+            className="rounded-2xl border border-white/10 bg-zinc-900 p-4"
+          >
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="font-black text-white">
+                  {safeText(item.product_name_snapshot)}
+                </p>
+                <p className="text-sm text-zinc-400">
+                  {safeText(item.team_name_snapshot)} /{" "}
+                  {productTypeLabel(item.product_type_snapshot)}
+                </p>
+              </div>
+              <p className="font-bold text-red-100">
+                {formatMoney(item.line_total)}
+              </p>
+            </div>
+            <div className="mt-3 grid gap-2 text-sm text-zinc-300 sm:grid-cols-4">
+              <span>ไซส์: {safeText(item.size)}</span>
+              <span>ชื่อ: {safeText(item.custom_name)}</span>
+              <span>เบอร์: {safeText(item.custom_number)}</span>
+              <span>จำนวน: {item.quantity || 0}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function Detail({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-zinc-900 p-4">
+      <dt className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">
+        {label}
+      </dt>
+      <dd className="mt-2 text-zinc-100">{value}</dd>
+    </div>
   );
 }

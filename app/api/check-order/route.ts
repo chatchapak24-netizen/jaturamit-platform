@@ -7,9 +7,6 @@ type CheckOrderRequest = {
   phone?: unknown;
 };
 
-const SAFE_ORDER_FIELDS =
-  "order_code, team, size, shirt_name, shirt_number, quantity, delivery_method, status, created_at, updated_at";
-
 function jsonResponse(body: unknown, status: number) {
   return Response.json(body, {
     status,
@@ -36,39 +33,44 @@ export async function POST(request: Request) {
   const phone = cleanInput(payload.phone);
 
   if (!orderCode || !phone) {
-    return jsonResponse({ error: "กรุณากรอกเลขออเดอร์และเบอร์โทร" }, 400);
+    return jsonResponse(
+      { error: "กรุณากรอกรหัสออเดอร์และเบอร์โทรให้ครบ" },
+      400,
+    );
   }
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey =
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  if (!supabaseUrl || !supabaseKey) {
+  if (!supabaseUrl || !supabaseAnonKey) {
     return jsonResponse({ error: "ระบบยังไม่พร้อมใช้งาน" }, 500);
   }
 
-  const supabase = createClient(supabaseUrl, supabaseKey, {
+  const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     auth: {
       persistSession: false,
       autoRefreshToken: false,
     },
   });
 
-  const { data, error } = await supabase
-    .from("preorders")
-    .select(SAFE_ORDER_FIELDS)
-    .eq("order_code", orderCode)
-    .eq("phone", phone)
-    .maybeSingle();
+  const { data, error } = await supabase.rpc("lookup_preorder_status", {
+    p_order_code: orderCode,
+    p_phone: phone,
+  });
 
   if (error) {
-    return jsonResponse({ error: "ไม่สามารถตรวจสอบออเดอร์ได้" }, 500);
+    return jsonResponse(
+      { error: "ไม่สามารถตรวจสอบออเดอร์ได้ กรุณาลองใหม่อีกครั้ง" },
+      500,
+    );
   }
 
   if (!data) {
-    return jsonResponse({ error: "ไม่พบออเดอร์ตามข้อมูลที่กรอก" }, 404);
+    return jsonResponse(
+      { error: "ไม่พบออเดอร์ กรุณาตรวจสอบรหัสออเดอร์และเบอร์โทรอีกครั้ง" },
+      404,
+    );
   }
 
-  return jsonResponse({ order: data }, 200);
+  return jsonResponse(data, 200);
 }
