@@ -41,6 +41,8 @@ type PreorderOrder = {
   created_at: string | null;
   updated_at: string | null;
   campaign_id: string | null;
+  slip_path: string | null;
+  slip_uploaded_at: string | null;
 };
 
 type PreorderItem = {
@@ -269,6 +271,7 @@ export default function AdminPreordersPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [savingOrderId, setSavingOrderId] = useState("");
+  const [openingSlipOrderId, setOpeningSlipOrderId] = useState("");
   const [message, setMessage] = useState("");
   const [errorText, setErrorText] = useState("");
   const [selectedOrder, setSelectedOrder] = useState<DisplayOrder | null>(null);
@@ -295,7 +298,7 @@ export default function AdminPreordersPage() {
     const { data: orderRows, error: orderError } = await supabaseBrowser
       .from("preorders")
       .select(
-        "id, order_code, full_name, phone, team, size, shirt_name, shirt_number, quantity, unit_price, delivery_method, address, note, payment_note, total_amount, status, created_at, updated_at, campaign_id",
+        "id, order_code, full_name, phone, team, size, shirt_name, shirt_number, quantity, unit_price, delivery_method, address, note, payment_note, total_amount, status, created_at, updated_at, campaign_id, slip_path, slip_uploaded_at",
       )
       .order("created_at", { ascending: false })
       .limit(1000);
@@ -531,6 +534,26 @@ export default function AdminPreordersPage() {
     setSavingOrderId("");
   }
 
+  async function openSlip(order: DisplayOrder) {
+    if (!order.slip_path) return;
+
+    setOpeningSlipOrderId(order.id);
+    setErrorText("");
+
+    const { data, error } = await supabaseBrowser.storage
+      .from("preorder-slips")
+      .createSignedUrl(order.slip_path, 300);
+
+    if (error || !data?.signedUrl) {
+      setErrorText("ไม่สามารถเปิดสลิปได้ กรุณาลองใหม่อีกครั้ง");
+      setOpeningSlipOrderId("");
+      return;
+    }
+
+    window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+    setOpeningSlipOrderId("");
+  }
+
   function exportOrdersCsv() {
     const rows: Array<Array<number | string | null>> = [
       [
@@ -738,6 +761,7 @@ export default function AdminPreordersPage() {
                   <th className="px-4 py-3">จำนวน</th>
                   <th className="px-4 py-3">ยอดรวม</th>
                   <th className="px-4 py-3">รับสินค้า</th>
+                  <th className="px-4 py-3">สลิป</th>
                   <th className="px-4 py-3">สถานะ</th>
                   <th className="px-4 py-3">รายละเอียด</th>
                 </tr>
@@ -773,6 +797,17 @@ export default function AdminPreordersPage() {
                       {formatMoney(order.total_amount)}
                     </td>
                     <td className="px-4 py-4">{deliveryLabel(order.delivery_method)}</td>
+                    <td className="px-4 py-4">
+                      <span
+                        className={`rounded-full border px-3 py-1 text-xs font-bold ${
+                          order.slip_path
+                            ? "border-emerald-400/40 bg-emerald-500/10 text-emerald-200"
+                            : "border-zinc-500/40 bg-zinc-700/30 text-zinc-300"
+                        }`}
+                      >
+                        {order.slip_path ? "มีสลิป" : "ไม่มีสลิป"}
+                      </span>
+                    </td>
                     <td className="px-4 py-4">
                       <select
                         value={order.status || "pending"}
@@ -822,6 +857,8 @@ export default function AdminPreordersPage() {
       {selectedOrder ? (
         <OrderDetailPanel
           order={selectedOrder}
+          openingSlipOrderId={openingSlipOrderId}
+          onOpenSlip={openSlip}
           onClose={() => setSelectedOrder(null)}
         />
       ) : null}
@@ -940,9 +977,13 @@ function ProductionSummary({
 
 function OrderDetailPanel({
   order,
+  openingSlipOrderId,
+  onOpenSlip,
   onClose,
 }: {
   order: DisplayOrder;
+  openingSlipOrderId: string;
+  onOpenSlip: (order: DisplayOrder) => void;
   onClose: () => void;
 }) {
   return (
@@ -973,6 +1014,26 @@ function OrderDetailPanel({
           <Detail label="วิธีรับสินค้า" value={deliveryLabel(order.delivery_method)} />
           <Detail label="สถานะ" value={statusLabel(order.status)} />
           <Detail label="ยอดรวม" value={formatMoney(order.total_amount)} />
+          <div className="rounded-xl border border-white/10 bg-zinc-900/70 p-4">
+            <p className="text-xs uppercase tracking-[0.18em] text-zinc-500">
+              สลิป
+            </p>
+            <p className="mt-2 whitespace-pre-wrap text-sm font-semibold text-zinc-100">
+              {order.slip_path
+                ? `มีสลิป${order.slip_uploaded_at ? ` / ${formatDate(order.slip_uploaded_at)}` : ""}`
+                : "ไม่มีสลิป"}
+            </p>
+            {order.slip_path ? (
+              <button
+                type="button"
+                onClick={() => onOpenSlip(order)}
+                disabled={openingSlipOrderId === order.id}
+                className="mt-3 rounded-xl border border-emerald-300/30 px-3 py-2 text-sm font-bold text-emerald-100 hover:bg-emerald-300/10 disabled:opacity-60"
+              >
+                {openingSlipOrderId === order.id ? "กำลังเปิด..." : "ดูสลิป"}
+              </button>
+            ) : null}
+          </div>
           <Detail label="ที่อยู่" value={order.address || "-"} wide />
           <Detail label="หมายเหตุ" value={order.note || "-"} wide />
           <Detail label="หมายเหตุการชำระเงิน" value={order.payment_note || "-"} wide />
