@@ -118,6 +118,12 @@ export default function PreorderForm({
     if (product.requires_size && !draft.size) {
       return "กรุณาเลือกไซส์";
     }
+    if (draft.custom_name && !/^[A-Z]+$/.test(draft.custom_name)) {
+      return "ชื่อบนเสื้อต้องเป็นภาษาอังกฤษตัวพิมพ์ใหญ่ A-Z เท่านั้น";
+    }
+    if (draft.custom_number && !/^[0-9]+$/.test(draft.custom_number)) {
+      return "เบอร์เสื้อต้องเป็นตัวเลขเท่านั้น";
+    }
     return "";
   }
 
@@ -315,8 +321,15 @@ export default function PreorderForm({
                 className={inputClass}
                 value={draft.custom_name}
                 onChange={(event) =>
-                  setDraft({ ...draft, custom_name: event.target.value })
+                  setDraft({
+                    ...draft,
+                    custom_name: event.target.value
+                      .toUpperCase()
+                      .replace(/[^A-Z]/g, ""),
+                  })
                 }
+                inputMode="text"
+                pattern="[A-Z]*"
               />
             </Field>
           ) : null}
@@ -326,9 +339,13 @@ export default function PreorderForm({
               <input
                 className={inputClass}
                 inputMode="numeric"
+                pattern="[0-9]*"
                 value={draft.custom_number}
                 onChange={(event) =>
-                  setDraft({ ...draft, custom_number: event.target.value })
+                  setDraft({
+                    ...draft,
+                    custom_number: event.target.value.replace(/\D/g, ""),
+                  })
                 }
               />
             </Field>
