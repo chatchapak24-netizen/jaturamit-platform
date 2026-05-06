@@ -118,13 +118,12 @@ export default function PreorderForm({
     if (product.requires_size && !draft.size) {
       return "กรุณาเลือกไซส์";
     }
-    if (product.requires_custom_name && !draft.custom_name.trim()) {
-      return "กรุณากรอกชื่อบนเสื้อ";
+    if (draft.custom_name && !/^[A-Z]+$/.test(draft.custom_name)) {
+      return "ชื่อบนเสื้อต้องเป็นภาษาอังกฤษตัวพิมพ์ใหญ่ A-Z เท่านั้น";
     }
-    if (product.requires_custom_number && !draft.custom_number.trim()) {
-      return "กรุณากรอกเบอร์เสื้อ";
+    if (draft.custom_number && !/^[0-9]+$/.test(draft.custom_number)) {
+      return "เบอร์เสื้อต้องเป็นตัวเลขเท่านั้น";
     }
-
     return "";
   }
 
@@ -254,6 +253,7 @@ export default function PreorderForm({
   return (
     <form
       onSubmit={handleSubmit}
+      noValidate
       className="grid gap-5 lg:grid-cols-[0.95fr_1.05fr]"
     >
       <section className="rounded-2xl border border-white/10 bg-zinc-900 p-5 shadow-2xl shadow-black/30 md:p-7">
@@ -273,7 +273,6 @@ export default function PreorderForm({
               className={inputClass}
               value={draft.product_id}
               onChange={(event) => updateSelectedProduct(event.target.value)}
-              required
             >
               {products.map((product) => (
                 <option key={product.id} value={product.id}>
@@ -306,7 +305,6 @@ export default function PreorderForm({
                     size: event.target.value as SizeValue,
                   })
                 }
-                required
               >
                 {SIZE_OPTIONS.map((size) => (
                   <option key={size} value={size}>
@@ -318,34 +316,37 @@ export default function PreorderForm({
           ) : null}
 
           {selectedProduct?.allows_custom_name ? (
-            <Field
-              label="ชื่อบนเสื้อ"
-              required={selectedProduct.requires_custom_name}
-            >
+            <Field label="ชื่อบนเสื้อ">
               <input
                 className={inputClass}
                 value={draft.custom_name}
                 onChange={(event) =>
-                  setDraft({ ...draft, custom_name: event.target.value })
+                  setDraft({
+                    ...draft,
+                    custom_name: event.target.value
+                      .toUpperCase()
+                      .replace(/[^A-Z]/g, ""),
+                  })
                 }
-                required={selectedProduct.requires_custom_name}
+                inputMode="text"
+                pattern="[A-Z]*"
               />
             </Field>
           ) : null}
 
           {selectedProduct?.allows_custom_number ? (
-            <Field
-              label="เบอร์เสื้อ"
-              required={selectedProduct.requires_custom_number}
-            >
+            <Field label="เบอร์เสื้อ">
               <input
                 className={inputClass}
                 inputMode="numeric"
+                pattern="[0-9]*"
                 value={draft.custom_number}
                 onChange={(event) =>
-                  setDraft({ ...draft, custom_number: event.target.value })
+                  setDraft({
+                    ...draft,
+                    custom_number: event.target.value.replace(/\D/g, ""),
+                  })
                 }
-                required={selectedProduct.requires_custom_number}
               />
             </Field>
           ) : null}
@@ -362,7 +363,6 @@ export default function PreorderForm({
                   quantity: Number(event.target.value) || 1,
                 })
               }
-              required
             />
           </Field>
 
@@ -448,7 +448,6 @@ export default function PreorderForm({
                   full_name: event.target.value,
                 })
               }
-              required
             />
           </Field>
 
@@ -463,7 +462,6 @@ export default function PreorderForm({
                   phone: event.target.value,
                 })
               }
-              required
             />
           </Field>
 
@@ -477,7 +475,6 @@ export default function PreorderForm({
                   delivery_method: event.target.value as DeliveryValue,
                 })
               }
-              required
             >
               {DELIVERY_OPTIONS.map((delivery) => (
                 <option key={delivery.value} value={delivery.value}>

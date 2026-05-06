@@ -177,16 +177,16 @@ begin
       raise exception 'custom_name is not allowed for item %', v_item_index;
     end if;
 
-    if v_product.requires_custom_name and v_custom_name is null then
-      raise exception 'custom_name is required for item %', v_item_index;
+    if v_custom_name is not null and v_custom_name !~ '^[A-Z]+$' then
+      raise exception 'custom_name must contain uppercase English letters only for item %', v_item_index;
     end if;
 
     if not v_product.allows_custom_number and v_custom_number is not null then
       raise exception 'custom_number is not allowed for item %', v_item_index;
     end if;
 
-    if v_product.requires_custom_number and v_custom_number is null then
-      raise exception 'custom_number is required for item %', v_item_index;
+    if v_custom_number is not null and v_custom_number !~ '^[0-9]+$' then
+      raise exception 'custom_number must contain numbers only for item %', v_item_index;
     end if;
 
     v_line_total := v_product.price * v_quantity;
