@@ -11,6 +11,7 @@ const LINE_OA_URL = "https://lin.ee/0dRHmzW";
 const SLIP_BUCKET = "preorder-slips";
 const MAX_SLIP_SIZE_BYTES = 5 * 1024 * 1024;
 const ALLOWED_SLIP_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
+const PHONE_ERROR = "กรุณากรอกเบอร์โทรให้ถูกต้อง 10 หลัก เช่น 0812345678";
 
 const DELIVERY_OPTIONS = [
   { value: "pickup", label: "รับที่หน้างาน" },
@@ -19,6 +20,7 @@ const DELIVERY_OPTIONS = [
 
 type SizeValue = (typeof SIZE_OPTIONS)[number];
 type DeliveryValue = (typeof DELIVERY_OPTIONS)[number]["value"];
+type SlipStatus = "uploaded" | "missing" | "failed";
 
 type CustomerFormState = {
   full_name: string;
@@ -49,13 +51,19 @@ type CreateOrderResponse = {
   total_amount?: number | null;
 };
 
-type SlipStatus = "uploaded" | "missing" | "failed";
-
 type SuccessState = {
   orderCode: string | null;
   totalAmount: number | null;
   phone: string;
+  fullName: string;
+  campaignName: string;
   slipStatus: SlipStatus;
+};
+
+type PaymentInfoValue = {
+  bankName: string;
+  accountName: string;
+  accountNumber: string;
 };
 
 const inputClass =
@@ -106,9 +114,6 @@ export default function PreorderForm({
   );
   const [draft, setDraft] = useState<ItemDraft>(createDraft(initialProduct));
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
-  const [slipFile, setSlipFile] = useState<File | null>(null);
-  const [slipError, setSlipError] = useState("");
-  const [slipInputKey, setSlipInputKey] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [errorText, setErrorText] = useState("");
   const [successData, setSuccessData] = useState<SuccessState | null>(null);
@@ -162,6 +167,7 @@ export default function PreorderForm({
     if (draft.custom_number && !/^[0-9]+$/.test(draft.custom_number)) {
       return "เบอร์เสื้อต้องเป็นตัวเลขเท่านั้น";
     }
+
     return "";
   }
 
@@ -204,35 +210,25 @@ export default function PreorderForm({
     setSuccessData(null);
   }
 
-  function updateSlipFile(file: File | null) {
-    const validationError = validateSlipFile(file);
-
-    setSlipFile(validationError ? null : file);
-    setSlipError(validationError);
-    if (validationError) {
-      setSlipInputKey((currentKey) => currentKey + 1);
-    }
-    setErrorText("");
-    setSuccessData(null);
-  }
-
   async function uploadAndAttachSlip({
     file,
     orderCode,
-    orderId,
     phone,
   }: {
     file: File;
     orderCode: string | null;
-    orderId: string | null;
     phone: string;
   }) {
-    if (!orderCode) {
+    if (!orderCode || !isValidThaiPhone(phone)) {
       return false;
     }
 
-    const folderName = orderCode || orderId || `order-${Date.now()}`;
-    const slipPath = `${folderName}/${Date.now()}-${safeSlipFileName(file.name)}`;
+    const validationError = validateSlipFile(file);
+    if (validationError) {
+      return false;
+    }
+
+    const slipPath = `${orderCode}/${Date.now()}-${safeSlipFileName(file.name)}`;
     const { error: uploadError } = await supabaseBrowser.storage
       .from(SLIP_BUCKET)
       .upload(slipPath, file, {
@@ -261,14 +257,17 @@ export default function PreorderForm({
     setErrorText("");
     setSuccessData(null);
 
+    const cleanFullName = customerForm.full_name.trim();
+    const cleanPhone = customerForm.phone.trim();
+
     if (cartItems.length === 0) {
       return setErrorText("กรุณาเพิ่มสินค้าอย่างน้อย 1 รายการ");
     }
-    if (!customerForm.full_name.trim()) {
+    if (!cleanFullName) {
       return setErrorText("กรุณากรอกชื่อ-นามสกุล");
     }
-    if (!customerForm.phone.trim()) {
-      return setErrorText("กรุณากรอกเบอร์โทร");
+    if (!isValidThaiPhone(cleanPhone)) {
+      return setErrorText(PHONE_ERROR);
     }
     if (!customerForm.delivery_method) {
       return setErrorText("กรุณาเลือกวิธีรับสินค้า");
@@ -278,12 +277,6 @@ export default function PreorderForm({
       !customerForm.address.trim()
     ) {
       return setErrorText("กรุณากรอกที่อยู่จัดส่ง");
-    }
-
-    const slipValidationError = validateSlipFile(slipFile);
-    if (slipValidationError) {
-      setSlipError(slipValidationError);
-      return;
     }
 
     const rpcItems = cartItems.map((item) => ({
@@ -303,8 +296,8 @@ export default function PreorderForm({
     try {
       const { data, error } = await supabaseBrowser.rpc("create_preorder_order", {
         p_campaign_id: campaign.id,
-        p_full_name: customerForm.full_name.trim(),
-        p_phone: customerForm.phone.trim(),
+        p_full_name: cleanFullName,
+        p_phone: cleanPhone,
         p_delivery_method: customerForm.delivery_method,
         p_address:
           customerForm.delivery_method === "shipping"
@@ -316,40 +309,26 @@ export default function PreorderForm({
       });
 
       if (error) {
-        setErrorText("ไม่สามารถส่งคำสั่งซื้อได้ กรุณาตรวจสอบข้อมูลและลองใหม่");
+        setErrorText(
+          "ไม่สามารถส่งคำสั่งซื้อได้ กรุณาตรวจสอบข้อมูลและลองใหม่",
+        );
         return;
       }
 
       const responseRow = Array.isArray(data)
         ? (data[0] as CreateOrderResponse | undefined)
         : undefined;
-      const cleanPhone = customerForm.phone.trim();
-      const orderCode = responseRow?.order_code || null;
-      const orderId = responseRow?.order_id || null;
-      let slipStatus: SlipStatus = slipFile ? "failed" : "missing";
-
-      if (slipFile) {
-        const slipAttached = await uploadAndAttachSlip({
-          file: slipFile,
-          orderCode,
-          orderId,
-          phone: cleanPhone,
-        });
-
-        slipStatus = slipAttached ? "uploaded" : "failed";
-      }
 
       setSuccessData({
-        orderCode,
+        orderCode: responseRow?.order_code || null,
         totalAmount: responseRow?.total_amount ?? cartTotal,
         phone: cleanPhone,
-        slipStatus,
+        fullName: cleanFullName,
+        campaignName: campaign.name,
+        slipStatus: "missing",
       });
       setCustomerForm(createInitialCustomerForm());
       setCartItems([]);
-      setSlipFile(null);
-      setSlipError("");
-      setSlipInputKey((currentKey) => currentKey + 1);
       setDraft(createDraft(selectedProduct));
     } catch {
       setErrorText("ไม่สามารถส่งคำสั่งซื้อได้ กรุณาลองใหม่อีกครั้ง");
@@ -374,10 +353,6 @@ export default function PreorderForm({
     } catch {
       setCopyMessage("คัดลอกไม่สำเร็จ กรุณาคัดลอกด้วยตนเอง");
     }
-  }
-
-  function openLineOA() {
-    window.open(LINE_OA_URL, "_blank", "noopener,noreferrer");
   }
 
   if (products.length === 0) {
@@ -504,9 +479,12 @@ export default function PreorderForm({
             />
           </Field>
 
-          <div className="rounded-xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm font-bold text-red-100">
+          <div className="rounded-xl border border-red-300/30 bg-red-950/30 p-4 text-sm font-black text-red-50">
             ยอดรายการนี้{" "}
-            {(selectedProduct?.price || 0) * draft.quantity} บาท
+            {selectedProduct
+              ? (selectedProduct.price * draft.quantity).toLocaleString("th-TH")
+              : 0}{" "}
+            บาท
           </div>
 
           <button
@@ -520,21 +498,21 @@ export default function PreorderForm({
       </section>
 
       <section className="rounded-2xl border border-white/10 bg-zinc-900 p-5 shadow-2xl shadow-black/30 md:p-7">
-        <div className="flex flex-col gap-3 border-b border-white/10 pb-5 md:flex-row md:items-end md:justify-between">
+        <div className="flex flex-col gap-2 border-b border-white/10 pb-5 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.24em] text-red-300">
               Order Summary
             </p>
-            <h2 className="mt-2 text-2xl font-black">รายการสั่งซื้อ</h2>
+            <h2 className="mt-2 text-2xl font-black">สรุปคำสั่งซื้อ</h2>
           </div>
-          <div className="rounded-xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm font-bold text-red-100">
-            {cartQuantity} ชิ้น / {cartTotal} บาท
+          <div className="text-sm text-zinc-400">
+            {cartQuantity} ชิ้น / {cartTotal.toLocaleString("th-TH")} บาท
           </div>
         </div>
 
         <div className="mt-5 space-y-3">
           {cartItems.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-white/15 bg-zinc-950 p-5 text-sm text-zinc-400">
+            <div className="rounded-xl border border-white/10 bg-zinc-950 p-4 text-sm text-zinc-400">
               ยังไม่มีสินค้าในรายการ
             </div>
           ) : (
@@ -575,14 +553,6 @@ export default function PreorderForm({
           )}
         </div>
 
-        <SlipUploadPanel
-          slipInputKey={slipInputKey}
-          slipError={slipError}
-          slipFile={slipFile}
-          onSlipFileChange={updateSlipFile}
-          onOpenLineOA={openLineOA}
-        />
-
         <div className="mt-6 grid gap-4 md:grid-cols-2">
           <Field label="ชื่อ-นามสกุล" required>
             <input
@@ -605,9 +575,10 @@ export default function PreorderForm({
               onChange={(event) =>
                 setCustomerForm({
                   ...customerForm,
-                  phone: event.target.value,
+                  phone: event.target.value.replace(/\D/g, "").slice(0, 10),
                 })
               }
+              placeholder="0812345678"
             />
           </Field>
 
@@ -670,7 +641,6 @@ export default function PreorderForm({
               }
             />
           </Field>
-
         </div>
 
         {errorText && (
@@ -681,11 +651,13 @@ export default function PreorderForm({
 
         {successData ? (
           <SuccessCard
+            key={successData.orderCode || "success"}
             successData={successData}
             paymentInfo={paymentInfo}
             copyMessage={copyMessage}
             onCopyAccountNumber={copyAccountNumber}
             onCopyOrderCode={copyOrderCode}
+            onAttachSlip={uploadAndAttachSlip}
             onOrderMore={() => {
               setSuccessData(null);
               setCopyMessage("");
@@ -729,59 +701,8 @@ function Field({
   );
 }
 
-function SlipUploadPanel({
-  slipInputKey,
-  slipError,
-  slipFile,
-  onSlipFileChange,
-  onOpenLineOA,
-}: {
-  slipInputKey: number;
-  slipError: string;
-  slipFile: File | null;
-  onSlipFileChange: (file: File | null) => void;
-  onOpenLineOA: () => void;
-}) {
-  return (
-    <div className="mt-5 rounded-2xl border border-emerald-300/20 bg-emerald-300/5 p-4">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h3 className="font-black text-white">แนบสลิปการโอนเงิน</h3>
-          <p className="mt-1 text-xs leading-5 text-zinc-500">
-            แนบสลิปพร้อมรายการสั่งซื้อ หรือส่งสลิปทาง LINE OA ภายหลังได้
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={onOpenLineOA}
-          className="rounded-xl border border-emerald-300/30 px-4 py-3 text-sm font-black text-emerald-50 hover:bg-emerald-300/10"
-        >
-          ส่งผ่าน LINE OA
-        </button>
-      </div>
-
-      <div className="mt-4 space-y-2">
-        <input
-          key={slipInputKey}
-          type="file"
-          accept="image/jpeg,image/png,image/webp"
-          onChange={(event) => onSlipFileChange(event.target.files?.[0] || null)}
-          className="w-full rounded-xl border border-dashed border-white/15 bg-zinc-950 px-4 py-3 text-sm text-zinc-300 file:mr-4 file:rounded-lg file:border-0 file:bg-red-600 file:px-4 file:py-2 file:text-sm file:font-bold file:text-white hover:file:bg-red-500"
-        />
-        <p className="text-xs leading-5 text-zinc-500">
-          รองรับไฟล์ JPG, PNG, WEBP ขนาดไม่เกิน 5MB ถ้าแนบไม่ได้ สามารถส่งสลิปทาง LINE OA ได้ภายหลัง
-        </p>
-        {slipError ? (
-          <p className="text-xs font-bold text-red-200">{slipError}</p>
-        ) : null}
-        {slipFile ? (
-          <p className="text-xs font-bold text-emerald-200">
-            เลือกไฟล์แล้ว: {slipFile.name}
-          </p>
-        ) : null}
-      </div>
-    </div>
-  );
+function isValidThaiPhone(phone: string) {
+  return /^0\d{9}$/.test(phone);
 }
 
 function validateSlipFile(file: File | null) {
@@ -805,25 +726,56 @@ function safeSlipFileName(fileName: string) {
   return cleaned || "payment-slip";
 }
 
+function slipStatusLabel(status: SlipStatus) {
+  if (status === "uploaded") return "ได้รับสลิปแล้ว";
+  if (status === "failed") return "แนบสลิปไม่สำเร็จ";
+  return "ยังไม่ได้แนบสลิป";
+}
+
+function successMessage(status: SlipStatus) {
+  if (status === "uploaded") {
+    return "ระบบได้รับคำสั่งซื้อและสลิปการโอนเงินเรียบร้อยแล้ว แอดมินจะตรวจสอบยอดชำระและอัปเดตสถานะออเดอร์ภายหลัง";
+  }
+  if (status === "failed") {
+    return "ระบบได้รับคำสั่งซื้อเรียบร้อยแล้ว แต่ยังแนบสลิปไม่สำเร็จ กรุณาส่งสลิปทาง LINE OA พร้อมแจ้งรหัสออเดอร์ ชื่อผู้สั่งซื้อ และเบอร์โทร";
+  }
+
+  return "ระบบได้รับคำสั่งซื้อเรียบร้อยแล้ว กรุณาโอนเงินตามยอดชำระ แล้วแนบสลิปในเว็บ หรือส่งสลิปทาง LINE OA พร้อมแจ้งรหัสออเดอร์ ชื่อผู้สั่งซื้อ และเบอร์โทร";
+}
+
 function SuccessCard({
   successData,
   paymentInfo,
   copyMessage,
   onCopyAccountNumber,
   onCopyOrderCode,
+  onAttachSlip,
   onOrderMore,
 }: {
   successData: SuccessState;
-  paymentInfo: {
-    bankName: string;
-    accountName: string;
-    accountNumber: string;
-  };
+  paymentInfo: PaymentInfoValue;
   copyMessage: string;
   onCopyAccountNumber: () => void;
   onCopyOrderCode: (orderCode: string) => void;
+  onAttachSlip: ({
+    file,
+    orderCode,
+    phone,
+  }: {
+    file: File;
+    orderCode: string | null;
+    phone: string;
+  }) => Promise<boolean>;
   onOrderMore: () => void;
 }) {
+  const [slipStatus, setSlipStatus] = useState<SlipStatus>(
+    successData.slipStatus,
+  );
+  const [slipFile, setSlipFile] = useState<File | null>(null);
+  const [slipError, setSlipError] = useState("");
+  const [slipUploading, setSlipUploading] = useState(false);
+  const [slipInputKey, setSlipInputKey] = useState(0);
+
   const checkOrderHref =
     successData.orderCode && successData.phone
       ? `/check-order?order_code=${encodeURIComponent(
@@ -831,84 +783,188 @@ function SuccessCard({
         )}&phone=${encodeURIComponent(successData.phone)}`
       : "/check-order";
 
+  function updateSlipFile(file: File | null) {
+    const validationError = validateSlipFile(file);
+
+    setSlipFile(validationError ? null : file);
+    setSlipError(validationError);
+    if (validationError) {
+      setSlipInputKey((currentKey) => currentKey + 1);
+    }
+  }
+
+  async function attachSlip() {
+    if (!successData.orderCode) {
+      setSlipError("ไม่พบรหัสออเดอร์ กรุณาส่งสลิปทาง LINE OA");
+      setSlipStatus("failed");
+      return;
+    }
+    if (!slipFile) {
+      setSlipError("กรุณาเลือกไฟล์สลิป");
+      return;
+    }
+
+    const validationError = validateSlipFile(slipFile);
+    if (validationError) {
+      setSlipError(validationError);
+      return;
+    }
+
+    setSlipUploading(true);
+    setSlipError("");
+
+    const attached = await onAttachSlip({
+      file: slipFile,
+      orderCode: successData.orderCode,
+      phone: successData.phone,
+    });
+
+    setSlipUploading(false);
+
+    if (attached) {
+      setSlipStatus("uploaded");
+      setSlipFile(null);
+      setSlipInputKey((currentKey) => currentKey + 1);
+      return;
+    }
+
+    setSlipStatus("failed");
+    setSlipError("แนบสลิปไม่สำเร็จ กรุณาส่งสลิปทาง LINE OA");
+  }
+
+  function downloadOrderSummaryImage() {
+    const canvas = document.createElement("canvas");
+    canvas.width = 1080;
+    canvas.height = 1350;
+    const context = canvas.getContext("2d");
+    if (!context) return;
+
+    context.fillStyle = "#09090b";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.fillStyle = "#ef4444";
+    context.fillRect(0, 0, canvas.width, 18);
+
+    context.fillStyle = "#ffffff";
+    context.font = "700 54px sans-serif";
+    context.fillText("สรุปคำสั่งซื้อพรีออเดอร์", 72, 120);
+
+    context.fillStyle = "#fca5a5";
+    context.font = "700 30px sans-serif";
+    context.fillText(successData.campaignName, 72, 172);
+
+    const rows = [
+      ["รหัสออเดอร์", successData.orderCode || "-"],
+      ["ชื่อผู้สั่งซื้อ", successData.fullName || "-"],
+      ["เบอร์โทร", successData.phone || "-"],
+      [
+        "ยอดชำระ",
+        successData.totalAmount !== null
+          ? `${successData.totalAmount.toLocaleString("th-TH")} บาท`
+          : "-",
+      ],
+      ["สถานะออเดอร์", "รอตรวจสอบยอด"],
+      ["สถานะสลิป", slipStatusLabel(slipStatus)],
+      ["ธนาคาร", paymentInfo.bankName],
+      ["ชื่อบัญชี", paymentInfo.accountName.replace(/\n/g, " / ")],
+      ["เลขบัญชี", paymentInfo.accountNumber],
+    ];
+
+    let y = 270;
+    rows.forEach(([label, value]) => {
+      context.fillStyle = "#a1a1aa";
+      context.font = "700 28px sans-serif";
+      context.fillText(label, 72, y);
+      context.fillStyle = "#ffffff";
+      context.font = "700 36px sans-serif";
+      context.fillText(value, 72, y + 48);
+      y += 118;
+    });
+
+    context.fillStyle = "#fee2e2";
+    context.font = "700 30px sans-serif";
+    context.fillText(
+      "หากยังไม่ได้แนบสลิป กรุณาส่งสลิปทาง LINE OA พร้อมรูปสรุปออเดอร์นี้",
+      72,
+      1260,
+    );
+
+    canvas.toBlob((blob) => {
+      if (!blob) return;
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `preorder-${successData.orderCode || Date.now()}.png`;
+      link.click();
+      URL.revokeObjectURL(url);
+    }, "image/png");
+  }
+
   return (
     <div className="mt-5 rounded-2xl border border-emerald-400/40 bg-emerald-950/30 p-5 text-emerald-50 shadow-2xl shadow-emerald-950/20">
       <p className="text-xs font-bold uppercase tracking-[0.24em] text-emerald-200">
         Order Submitted
       </p>
-      <h3 className="mt-2 text-2xl font-black">
-        ส่งคำสั่งซื้อเรียบร้อยแล้ว
-      </h3>
+      <h3 className="mt-2 text-2xl font-black">ส่งคำสั่งซื้อเรียบร้อยแล้ว</h3>
       <p className="mt-3 text-sm leading-6 text-emerald-50/90">
-        ระบบได้รับข้อมูลการสั่งซื้อของคุณแล้ว กรุณาโอนเงินและส่งสลิปทาง LINE
-        OA ลิงชิงบอล สปอร์ต พร้อมแจ้งชื่อผู้สั่งซื้อและเบอร์โทร
+        {successMessage(slipStatus)}
       </p>
 
       <div className="mt-5 grid gap-3 sm:grid-cols-2">
         {successData.orderCode ? (
-          <div className="rounded-xl border border-white/10 bg-zinc-950/70 p-4">
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-zinc-500">
-              รหัสออเดอร์
-            </p>
-            <p className="mt-2 text-xl font-black text-white">
-              {successData.orderCode}
-            </p>
-          </div>
+          <SummaryBox label="รหัสออเดอร์" value={successData.orderCode} />
         ) : null}
         {successData.totalAmount !== null ? (
-          <div className="rounded-xl border border-white/10 bg-zinc-950/70 p-4">
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-zinc-500">
-              ยอดชำระ
-            </p>
-            <p className="mt-2 text-xl font-black text-white">
-              {successData.totalAmount.toLocaleString("th-TH")} บาท
-            </p>
-          </div>
+          <SummaryBox
+            label="ยอดชำระ"
+            value={`${successData.totalAmount.toLocaleString("th-TH")} บาท`}
+          />
         ) : null}
-        <div className="rounded-xl border border-white/10 bg-zinc-950/70 p-4">
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-zinc-500">
-            สถานะสลิป
-          </p>
-          <p className="mt-2 text-sm font-black text-white">
-            {successData.slipStatus === "uploaded"
-              ? "ได้รับสลิปแล้ว"
-              : successData.slipStatus === "failed"
-                ? "แนบสลิปไม่สำเร็จ กรุณาส่งสลิปทาง LINE OA"
-                : "ยังไม่ได้แนบสลิป กรุณาส่งสลิปทาง LINE OA"}
-          </p>
-        </div>
+        <SummaryBox label="สถานะสลิป" value={slipStatusLabel(slipStatus)} />
       </div>
 
       <div className="mt-4 rounded-xl border border-white/10 bg-zinc-950/70 p-4">
         <p className="text-sm font-black text-white">ข้อมูลชำระเงิน</p>
         <dl className="mt-3 grid gap-2 text-sm text-zinc-300">
-          <div className="flex justify-between gap-3">
-            <dt>ธนาคาร</dt>
-            <dd className="font-bold text-white">{paymentInfo.bankName}</dd>
-          </div>
-          <div className="flex justify-between gap-3">
-            <dt>ชื่อบัญชี</dt>
-            <dd className="whitespace-pre-line text-right font-bold text-white">
-              {paymentInfo.accountName}
-            </dd>
-          </div>
-          <div className="flex justify-between gap-3">
-            <dt>เลขที่บัญชี</dt>
-            <dd className="font-black text-red-100">
-              {paymentInfo.accountNumber}
-            </dd>
-          </div>
+          <PaymentRow label="ธนาคาร" value={paymentInfo.bankName} />
+          <PaymentRow label="ชื่อบัญชี" value={paymentInfo.accountName} multiline />
+          <PaymentRow label="เลขที่บัญชี" value={paymentInfo.accountNumber} highlight />
         </dl>
       </div>
 
-      <p className="mt-4 rounded-xl border border-amber-300/30 bg-amber-300/10 p-4 text-sm leading-6 text-amber-100">
-        สถานะเริ่มต้นของออเดอร์คือ รอตรวจสอบยอด
-        แอดมินจะอัปเดตสถานะหลังตรวจสอบสลิป
-      </p>
+      {slipStatus !== "uploaded" ? (
+        <div className="mt-4 rounded-xl border border-emerald-300/20 bg-zinc-950/70 p-4">
+          <p className="font-black text-white">แนบสลิปในเว็บ</p>
+          <p className="mt-1 text-xs leading-5 text-zinc-400">
+            แนบหลังจากได้รหัสออเดอร์แล้ว ระบบจะผูกสลิปกับออเดอร์นี้ให้อัตโนมัติ
+          </p>
+          <input
+            key={slipInputKey}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            onChange={(event) => updateSlipFile(event.target.files?.[0] || null)}
+            className="mt-3 w-full rounded-xl border border-dashed border-white/15 bg-zinc-950 px-4 py-3 text-sm text-zinc-300 file:mr-4 file:rounded-lg file:border-0 file:bg-red-600 file:px-4 file:py-2 file:text-sm file:font-bold file:text-white hover:file:bg-red-500"
+          />
+          {slipFile ? (
+            <p className="mt-2 text-xs font-bold text-emerald-200">
+              เลือกไฟล์แล้ว: {slipFile.name}
+            </p>
+          ) : null}
+          {slipError ? (
+            <p className="mt-2 text-xs font-bold text-red-200">{slipError}</p>
+          ) : null}
+          <button
+            type="button"
+            onClick={attachSlip}
+            disabled={slipUploading}
+            className="mt-3 w-full rounded-xl bg-emerald-500 px-4 py-3 text-sm font-black text-zinc-950 hover:bg-emerald-400 disabled:opacity-60"
+          >
+            {slipUploading ? "กำลังแนบสลิป..." : "แนบสลิปกับออเดอร์นี้"}
+          </button>
+        </div>
+      ) : null}
 
-      <p className="mt-3 rounded-xl border border-emerald-300/20 bg-emerald-300/10 p-4 text-sm leading-6 text-emerald-50">
-        หากแนบสลิปในเว็บไม่ได้ กรุณาส่งสลิปทาง LINE OA พร้อมแจ้งรหัสออเดอร์
-        ชื่อผู้สั่งซื้อ และเบอร์โทร
+      <p className="mt-4 rounded-xl border border-amber-300/30 bg-amber-300/10 p-4 text-sm leading-6 text-amber-100">
+        สถานะเริ่มต้นของออเดอร์คือ รอตรวจสอบยอด แอดมินจะอัปเดตสถานะหลังตรวจสอบสลิป
       </p>
 
       <div className="mt-5 grid gap-3 sm:grid-cols-3">
@@ -928,15 +984,22 @@ function SuccessCard({
             คัดลอกรหัสออเดอร์
           </button>
         ) : null}
+        <button
+          type="button"
+          onClick={downloadOrderSummaryImage}
+          className="rounded-xl border border-white/10 px-4 py-3 text-sm font-black text-white hover:bg-white/10"
+        >
+          บันทึกรูปออเดอร์
+        </button>
         <a
           href={LINE_OA_URL}
-          onClick={(event) => {
-            event.preventDefault();
-            window.open(LINE_OA_URL, "_blank", "noopener,noreferrer");
-          }}
           target="_blank"
           rel="noopener noreferrer"
-          className="rounded-xl border border-emerald-300/30 bg-emerald-300/10 px-4 py-3 text-center text-sm font-black text-emerald-50 hover:bg-emerald-300/20"
+          className={`rounded-xl px-4 py-3 text-center text-sm font-black ${
+            slipStatus === "uploaded"
+              ? "border border-emerald-300/30 bg-emerald-300/10 text-emerald-50 hover:bg-emerald-300/20"
+              : "bg-emerald-500 text-zinc-950 hover:bg-emerald-400"
+          }`}
         >
           ส่งสลิป / ติดต่อ LINE OA
         </a>
@@ -951,13 +1014,49 @@ function SuccessCard({
           onClick={onOrderMore}
           className="rounded-xl border border-white/10 px-4 py-3 text-sm font-black text-white hover:bg-white/10"
         >
-          สั่งเพิ่ม
+          สั่งซื้อเพิ่ม
         </button>
       </div>
 
       {copyMessage ? (
         <p className="mt-3 text-sm font-bold text-emerald-100">{copyMessage}</p>
       ) : null}
+    </div>
+  );
+}
+
+function SummaryBox({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-white/10 bg-zinc-950/70 p-4">
+      <p className="text-xs font-bold uppercase tracking-[0.18em] text-zinc-500">
+        {label}
+      </p>
+      <p className="mt-2 text-xl font-black text-white">{value}</p>
+    </div>
+  );
+}
+
+function PaymentRow({
+  label,
+  value,
+  multiline,
+  highlight,
+}: {
+  label: string;
+  value: string;
+  multiline?: boolean;
+  highlight?: boolean;
+}) {
+  return (
+    <div className="flex justify-between gap-3">
+      <dt>{label}</dt>
+      <dd
+        className={`${multiline ? "whitespace-pre-line" : ""} text-right font-bold ${
+          highlight ? "text-red-100" : "text-white"
+        }`}
+      >
+        {value}
+      </dd>
     </div>
   );
 }

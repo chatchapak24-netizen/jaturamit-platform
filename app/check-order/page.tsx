@@ -5,6 +5,10 @@ import { FormEvent, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 
 const LINE_OA_URL = "https://lin.ee/0dRHmzW";
+const SLIP_BUCKET = "preorder-slips";
+const MAX_SLIP_SIZE_BYTES = 5 * 1024 * 1024;
+const ALLOWED_SLIP_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
+const PHONE_ERROR = "กรุณากรอกเบอร์โทรให้ถูกต้อง 10 หลัก เช่น 0812345678";
 
 type LookupOrder = {
   order_code: string | null;
@@ -114,9 +118,36 @@ function queryParam(name: string) {
   return new URLSearchParams(window.location.search).get(name) || "";
 }
 
+function isValidThaiPhone(phone: string) {
+  return /^0\d{9}$/.test(phone);
+}
+
+function validateSlipFile(file: File | null) {
+  if (!file) return "";
+  if (!ALLOWED_SLIP_TYPES.includes(file.type as (typeof ALLOWED_SLIP_TYPES)[number])) {
+    return "รองรับเฉพาะไฟล์ JPG, PNG หรือ WEBP เท่านั้น";
+  }
+  if (file.size > MAX_SLIP_SIZE_BYTES) {
+    return "ไฟล์สลิปต้องมีขนาดไม่เกิน 5MB";
+  }
+
+  return "";
+}
+
+function safeSlipFileName(fileName: string) {
+  const cleaned = fileName
+    .trim()
+    .replace(/\s+/g, "-")
+    .replace(/[^A-Za-z0-9._-]/g, "");
+
+  return cleaned || "payment-slip";
+}
+
 export default function CheckOrderPage() {
   const [orderCode, setOrderCode] = useState(() => queryParam("order_code"));
-  const [phone, setPhone] = useState(() => queryParam("phone"));
+  const [phone, setPhone] = useState(() =>
+    queryParam("phone").replace(/\D/g, "").slice(0, 10),
+  );
   const [result, setResult] = useState<LookupResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
@@ -133,6 +164,11 @@ export default function CheckOrderPage() {
 
     if (!cleanOrderCode || !cleanPhone) {
       setMessage("กรุณากรอกรหัสออเดอร์และเบอร์โทรให้ครบ");
+      return;
+    }
+
+    if (!isValidThaiPhone(cleanPhone)) {
+      setMessage(PHONE_ERROR);
       return;
     }
 
@@ -158,6 +194,20 @@ export default function CheckOrderPage() {
     setResult(data as LookupResult);
   }
 
+  function markSlipAttached() {
+    setResult((current) =>
+      current
+        ? {
+            ...current,
+            order: {
+              ...current.order,
+              has_slip: true,
+            },
+          }
+        : current,
+    );
+  }
+
   return (
     <main className="min-h-screen bg-zinc-950 text-white">
       <section className="mx-auto grid max-w-6xl gap-6 px-4 py-8 sm:px-6 lg:grid-cols-[0.9fr_1.1fr] lg:py-14">
@@ -169,8 +219,7 @@ export default function CheckOrderPage() {
             ตรวจสอบสถานะออเดอร์
           </h1>
           <p className="mt-4 text-sm leading-7 text-zinc-400 sm:text-base">
-            กรอกรหัสออเดอร์และเบอร์โทรที่ใช้สั่งซื้อ ระบบจะแสดงเฉพาะออเดอร์
-            ที่ข้อมูลทั้งสองรายการตรงกันเท่านั้น
+            กรอกรหัสออเดอร์และเบอร์โทรที่ใช้สั่งซื้อ ระบบจะแสดงเฉพาะออเดอร์ที่ข้อมูลทั้งสองรายการตรงกันเท่านั้น
           </p>
 
           <div className="mt-8 grid gap-3 text-sm text-zinc-300">
@@ -178,7 +227,7 @@ export default function CheckOrderPage() {
               ไม่สามารถค้นหาด้วยเบอร์โทรอย่างเดียว หรือรหัสออเดอร์อย่างเดียวได้
             </div>
             <div className="rounded-2xl border border-white/10 bg-zinc-950 p-4">
-              หน้านี้ไม่แสดงที่อยู่เต็มหรือรายละเอียดการชำระเงิน เพื่อปกป้องข้อมูลลูกค้า
+              หน้านี้ไม่แสดงที่อยู่เต็ม รายละเอียดการชำระเงิน หรือไฟล์สลิป เพื่อปกป้องข้อมูลลูกค้า
             </div>
           </div>
 
@@ -199,7 +248,7 @@ export default function CheckOrderPage() {
               <input
                 value={orderCode}
                 onChange={(event) => setOrderCode(event.target.value)}
-                placeholder="เช่น PRE-0001"
+                placeholder="เช่น JR2026-0001"
                 className="mt-2 w-full rounded-2xl border border-white/10 bg-zinc-950 px-4 py-4 text-white outline-none transition placeholder:text-zinc-600 focus:border-red-400"
               />
             </label>
@@ -208,8 +257,10 @@ export default function CheckOrderPage() {
               <span className="text-sm font-bold text-zinc-200">เบอร์โทร</span>
               <input
                 value={phone}
-                onChange={(event) => setPhone(event.target.value)}
-                placeholder="เบอร์โทรที่ใช้สั่งซื้อ"
+                onChange={(event) =>
+                  setPhone(event.target.value.replace(/\D/g, "").slice(0, 10))
+                }
+                placeholder="0812345678"
                 inputMode="tel"
                 className="mt-2 w-full rounded-2xl border border-white/10 bg-zinc-950 px-4 py-4 text-white outline-none transition placeholder:text-zinc-600 focus:border-red-400"
               />
@@ -236,15 +287,103 @@ export default function CheckOrderPage() {
             </button>
           </form>
 
-          {result ? <LookupResultCard result={result} /> : null}
+          {result ? (
+            <LookupResultCard
+              result={result}
+              lookupPhone={phone.trim()}
+              onSlipAttached={markSlipAttached}
+            />
+          ) : null}
         </div>
       </section>
     </main>
   );
 }
 
-function LookupResultCard({ result }: { result: LookupResult }) {
+function LookupResultCard({
+  result,
+  lookupPhone,
+  onSlipAttached,
+}: {
+  result: LookupResult;
+  lookupPhone: string;
+  onSlipAttached: () => void;
+}) {
   const order = result.order;
+  const [slipFile, setSlipFile] = useState<File | null>(null);
+  const [slipError, setSlipError] = useState("");
+  const [slipUploading, setSlipUploading] = useState(false);
+  const [slipInputKey, setSlipInputKey] = useState(0);
+  const [slipMessage, setSlipMessage] = useState("");
+
+  function updateSlipFile(file: File | null) {
+    const validationError = validateSlipFile(file);
+
+    setSlipFile(validationError ? null : file);
+    setSlipError(validationError);
+    setSlipMessage("");
+    if (validationError) {
+      setSlipInputKey((currentKey) => currentKey + 1);
+    }
+  }
+
+  async function attachSlip() {
+    if (!order.order_code || !isValidThaiPhone(lookupPhone)) {
+      setSlipError("ไม่สามารถแนบสลิปได้ กรุณาตรวจสอบออเดอร์ใหม่อีกครั้ง");
+      return;
+    }
+    if (!slipFile) {
+      setSlipError("กรุณาเลือกไฟล์สลิป");
+      return;
+    }
+
+    const validationError = validateSlipFile(slipFile);
+    if (validationError) {
+      setSlipError(validationError);
+      return;
+    }
+
+    setSlipUploading(true);
+    setSlipError("");
+    setSlipMessage("");
+
+    const slipPath = `${order.order_code}/${Date.now()}-${safeSlipFileName(
+      slipFile.name,
+    )}`;
+    const { error: uploadError } = await supabaseBrowser.storage
+      .from(SLIP_BUCKET)
+      .upload(slipPath, slipFile, {
+        contentType: slipFile.type,
+        upsert: false,
+      });
+
+    if (uploadError) {
+      setSlipUploading(false);
+      setSlipError("แนบสลิปไม่สำเร็จ กรุณาส่งสลิปทาง LINE OA");
+      return;
+    }
+
+    const { error: attachError } = await supabaseBrowser.rpc(
+      "attach_preorder_slip",
+      {
+        p_order_code: order.order_code,
+        p_phone: lookupPhone,
+        p_slip_path: slipPath,
+      },
+    );
+
+    setSlipUploading(false);
+
+    if (attachError) {
+      setSlipError("แนบสลิปไม่สำเร็จ กรุณาส่งสลิปทาง LINE OA");
+      return;
+    }
+
+    setSlipFile(null);
+    setSlipInputKey((currentKey) => currentKey + 1);
+    setSlipMessage("ได้รับสลิปแล้ว แอดมินจะตรวจสอบยอดชำระภายหลัง");
+    onSlipAttached();
+  }
 
   return (
     <section className="mt-8 rounded-3xl border border-white/10 bg-zinc-950 p-5">
@@ -286,25 +425,72 @@ function LookupResultCard({ result }: { result: LookupResult }) {
           value={
             order.has_slip
               ? "ได้รับสลิปแล้ว"
-              : "ยังไม่พบสลิป หากชำระเงินแล้วสามารถส่งสลิปทาง LINE OA ได้"
+              : "ยังไม่พบสลิป หากชำระเงินแล้วสามารถแนบสลิปในเว็บหรือส่งทาง LINE OA ได้"
           }
         />
       </dl>
 
       {!order.has_slip ? (
-        <a
-          href={LINE_OA_URL}
-          onClick={(event) => {
-            event.preventDefault();
-            window.open(LINE_OA_URL, "_blank", "noopener,noreferrer");
-          }}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-5 inline-flex rounded-2xl border border-emerald-300/30 bg-emerald-300/10 px-5 py-3 text-sm font-black text-emerald-50 hover:bg-emerald-300/20"
-        >
-          ส่งสลิป / ติดต่อแอดมินทาง LINE OA
-        </a>
-      ) : null}
+        <div className="mt-5 rounded-2xl border border-emerald-300/20 bg-emerald-300/5 p-4">
+          <p className="font-black text-white">แนบสลิปสำหรับออเดอร์นี้</p>
+          <p className="mt-1 text-xs leading-5 text-zinc-400">
+            ระบบจะใช้รหัสออเดอร์และเบอร์โทรที่ค้นหาอยู่ตอนนี้ ไม่ต้องกรอกข้อมูลซ้ำ
+          </p>
+          <input
+            key={slipInputKey}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            onChange={(event) => updateSlipFile(event.target.files?.[0] || null)}
+            className="mt-3 w-full rounded-xl border border-dashed border-white/15 bg-zinc-950 px-4 py-3 text-sm text-zinc-300 file:mr-4 file:rounded-lg file:border-0 file:bg-red-600 file:px-4 file:py-2 file:text-sm file:font-bold file:text-white hover:file:bg-red-500"
+          />
+          {slipFile ? (
+            <p className="mt-2 text-xs font-bold text-emerald-200">
+              เลือกไฟล์แล้ว: {slipFile.name}
+            </p>
+          ) : null}
+          {slipError ? (
+            <p className="mt-2 text-xs font-bold text-red-200">{slipError}</p>
+          ) : null}
+          {slipMessage ? (
+            <p className="mt-2 text-xs font-bold text-emerald-200">
+              {slipMessage}
+            </p>
+          ) : null}
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <button
+              type="button"
+              onClick={attachSlip}
+              disabled={slipUploading}
+              className="rounded-xl bg-emerald-500 px-4 py-3 text-sm font-black text-zinc-950 hover:bg-emerald-400 disabled:opacity-60"
+            >
+              {slipUploading ? "กำลังแนบสลิป..." : "แนบสลิปในเว็บ"}
+            </button>
+            <a
+              href={LINE_OA_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="rounded-xl border border-emerald-300/30 bg-emerald-300/10 px-4 py-3 text-center text-sm font-black text-emerald-50 hover:bg-emerald-300/20"
+            >
+              ส่งสลิป / ติดต่อ LINE OA
+            </a>
+          </div>
+        </div>
+      ) : (
+        <div className="mt-5 rounded-2xl border border-emerald-300/20 bg-emerald-300/5 p-4">
+          <p className="font-black text-emerald-100">ได้รับสลิปแล้ว</p>
+          <p className="mt-1 text-sm leading-6 text-zinc-300">
+            หากมีปัญหาเพิ่มเติม สามารถติดต่อแอดมินทาง LINE OA ได้
+          </p>
+          <a
+            href={LINE_OA_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-3 inline-flex rounded-xl border border-emerald-300/30 px-4 py-3 text-sm font-black text-emerald-50 hover:bg-emerald-300/10"
+          >
+            ติดต่อ LINE OA
+          </a>
+        </div>
+      )}
 
       <div className="mt-6 space-y-3">
         <h3 className="text-lg font-black">รายการสินค้า</h3>
