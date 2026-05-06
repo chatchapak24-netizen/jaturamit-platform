@@ -62,6 +62,19 @@ type PreorderItem = {
   created_at: string | null;
 };
 
+type PreorderPayment = {
+  id: string;
+  preorder_id: string | null;
+  provider: string | null;
+  payment_method: string | null;
+  omise_charge_id: string | null;
+  amount: number | null;
+  currency: string | null;
+  status: string | null;
+  paid_at: string | null;
+  created_at: string | null;
+};
+
 type Campaign = {
   id: string;
   name: string;
@@ -85,6 +98,7 @@ type DisplayItem = {
 
 type DisplayOrder = PreorderOrder & {
   items: DisplayItem[];
+  payment: PreorderPayment | null;
   totalQuantity: number;
   isLegacy: boolean;
 };
@@ -117,6 +131,8 @@ const PRODUCT_TYPE_LABELS: Record<string, string> = {
 const PREORDER_ITEM_BATCH_SIZE = 50;
 const PREORDER_ITEM_SELECT =
   "id, preorder_id, product_id, team_slug_snapshot, team_name_snapshot, product_name_snapshot, product_type_snapshot, unit_price_snapshot, quantity, size, custom_name, custom_number, line_total, created_at";
+const PREORDER_PAYMENT_SELECT =
+  "id, preorder_id, provider, payment_method, omise_charge_id, amount, currency, status, paid_at, created_at";
 
 function chunkArray<T>(items: T[], size: number) {
   const chunks: T[][] = [];
@@ -146,6 +162,21 @@ function deliveryLabel(method: string | null) {
 
 function productTypeLabel(type: string) {
   return PRODUCT_TYPE_LABELS[type] || type || "-";
+}
+
+function paymentStatusLabel(status: string | null) {
+  if (status === "successful") return "ชำระเงินแล้ว";
+  if (status === "pending") return "รอชำระ";
+  if (status === "failed") return "ไม่สำเร็จ";
+  if (status === "expired") return "หมดอายุ";
+  if (status === "cancelled") return "ยกเลิก";
+  return "ไม่มี";
+}
+
+function shortChargeId(chargeId: string | null) {
+  if (!chargeId) return "-";
+  if (chargeId.length <= 12) return chargeId;
+  return `${chargeId.slice(0, 7)}...${chargeId.slice(-4)}`;
 }
 
 function formatDate(value: string | null) {
@@ -267,6 +298,7 @@ export default function AdminPreordersPage() {
 
   const [orders, setOrders] = useState<PreorderOrder[]>([]);
   const [items, setItems] = useState<PreorderItem[]>([]);
+  const [payments, setPayments] = useState<PreorderPayment[]>([]);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -315,11 +347,13 @@ export default function AdminPreordersPage() {
     const orderIds = loadedOrders.map((order) => order.id).filter(Boolean);
     if (orderIds.length === 0) {
       setItems([]);
+      setPayments([]);
       setRefreshing(false);
       return;
     }
 
     const loadedItems: PreorderItem[] = [];
+    const loadedPayments: PreorderPayment[] = [];
 
     // Batch IDs to avoid long PostgREST URLs when the dashboard has many orders.
     for (const orderIdBatch of chunkArray(orderIds, PREORDER_ITEM_BATCH_SIZE)) {
@@ -341,7 +375,18 @@ export default function AdminPreordersPage() {
       loadedItems.push(...((itemRows || []) as PreorderItem[]));
     }
 
+    for (const orderIdBatch of chunkArray(orderIds, PREORDER_ITEM_BATCH_SIZE)) {
+      const { data: paymentRows } = await supabaseBrowser
+        .from("preorder_payments")
+        .select(PREORDER_PAYMENT_SELECT)
+        .in("preorder_id", orderIdBatch)
+        .order("created_at", { ascending: false });
+
+      loadedPayments.push(...((paymentRows || []) as PreorderPayment[]));
+    }
+
     setItems(loadedItems);
+    setPayments(loadedPayments);
     setRefreshing(false);
   }, []);
 
@@ -370,6 +415,18 @@ export default function AdminPreordersPage() {
     return map;
   }, [items]);
 
+  const paymentMap = useMemo(() => {
+    const map = new Map<string, PreorderPayment>();
+
+    payments.forEach((payment) => {
+      if (payment.preorder_id && !map.has(payment.preorder_id)) {
+        map.set(payment.preorder_id, payment);
+      }
+    });
+
+    return map;
+  }, [payments]);
+
   const displayOrders = useMemo<DisplayOrder[]>(() => {
     return orders.map((order) => {
       const orderItems = toDisplayItems(order, itemMap.get(order.id) || []);
@@ -381,11 +438,12 @@ export default function AdminPreordersPage() {
       return {
         ...order,
         items: orderItems,
+        payment: paymentMap.get(order.id) || null,
         totalQuantity,
         isLegacy: orderItems.every((item) => item.isLegacy),
       };
     });
-  }, [itemMap, orders]);
+  }, [itemMap, orders, paymentMap]);
 
   const filteredOrders = useMemo(() => {
     const query = searchText.trim().toLowerCase();
@@ -751,7 +809,7 @@ export default function AdminPreordersPage() {
       <section className="mt-6 grid gap-4 lg:grid-cols-[1fr_360px]">
         <div className="overflow-hidden rounded-2xl border border-white/10 bg-zinc-900/70">
           <div className="overflow-x-auto">
-            <table className="min-w-[1100px] w-full text-left text-sm">
+            <table className="min-w-[1200px] w-full text-left text-sm">
               <thead className="border-b border-white/10 bg-zinc-950/80 text-xs uppercase tracking-[0.18em] text-zinc-500">
                 <tr>
                   <th className="px-4 py-3">Order</th>
@@ -762,6 +820,7 @@ export default function AdminPreordersPage() {
                   <th className="px-4 py-3">ยอดรวม</th>
                   <th className="px-4 py-3">รับสินค้า</th>
                   <th className="px-4 py-3">สลิป</th>
+                  <th className="px-4 py-3">Payment</th>
                   <th className="px-4 py-3">สถานะ</th>
                   <th className="px-4 py-3">รายละเอียด</th>
                 </tr>
@@ -807,6 +866,17 @@ export default function AdminPreordersPage() {
                       >
                         {order.slip_path ? "มีสลิป" : "ไม่มีสลิป"}
                       </span>
+                    </td>
+                    <td className="px-4 py-4">
+                      <p className="font-bold text-zinc-100">
+                        {paymentStatusLabel(order.payment?.status || null)}
+                      </p>
+                      {order.payment ? (
+                        <p className="mt-1 text-xs text-zinc-500">
+                          {order.payment.payment_method || "-"} /{" "}
+                          {shortChargeId(order.payment.omise_charge_id)}
+                        </p>
+                      ) : null}
                     </td>
                     <td className="px-4 py-4">
                       <select
@@ -1032,6 +1102,26 @@ function OrderDetailPanel({
               >
                 {openingSlipOrderId === order.id ? "กำลังเปิด..." : "ดูสลิป"}
               </button>
+            ) : null}
+          </div>
+          <div className="rounded-xl border border-white/10 bg-zinc-900/70 p-4">
+            <p className="text-xs uppercase tracking-[0.18em] text-zinc-500">
+              PromptPay
+            </p>
+            <p className="mt-2 whitespace-pre-wrap text-sm font-semibold text-zinc-100">
+              {order.payment
+                ? `${paymentStatusLabel(order.payment.status)} / ${
+                    order.payment.payment_method || "-"
+                  }`
+                : "ไม่มีรายการชำระผ่าน PromptPay"}
+            </p>
+            {order.payment ? (
+              <p className="mt-2 text-xs text-zinc-500">
+                Charge: {shortChargeId(order.payment.omise_charge_id)}
+                {order.payment.paid_at
+                  ? ` / Paid: ${formatDate(order.payment.paid_at)}`
+                  : ""}
+              </p>
             ) : null}
           </div>
           <Detail label="ที่อยู่" value={order.address || "-"} wide />

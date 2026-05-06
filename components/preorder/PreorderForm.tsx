@@ -7,7 +7,7 @@ import { supabaseBrowser } from "@/lib/supabase-browser";
 import type { PreorderCampaign, PreorderProduct } from "@/components/preorder/types";
 
 const SIZE_OPTIONS = ["S", "M", "L", "XL", "2XL", "3XL", "4XL", "5XL"] as const;
-const LINE_OA_URL = "https://lin.ee/0dRHmzW";
+const LINE_OA_URL = "https://lin.ee/YmJhMlp";
 const SLIP_BUCKET = "preorder-slips";
 const MAX_SLIP_SIZE_BYTES = 5 * 1024 * 1024;
 const ALLOWED_SLIP_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
@@ -58,6 +58,15 @@ type SuccessState = {
   fullName: string;
   campaignName: string;
   slipStatus: SlipStatus;
+};
+
+type PromptPayPayment = {
+  charge_id: string | null;
+  status: string | null;
+  amount: number | null;
+  currency: string | null;
+  qr_code_uri: string | null;
+  expires_at: string | null;
 };
 
 type PaymentInfoValue = {
@@ -732,6 +741,14 @@ function slipStatusLabel(status: SlipStatus) {
   return "ยังไม่ได้แนบสลิป";
 }
 
+function promptPayStatusLabel(status: string | null) {
+  if (status === "successful") return "ชำระเงินแล้ว";
+  if (status === "failed") return "ชำระไม่สำเร็จ";
+  if (status === "expired") return "QR หมดอายุ";
+  if (status === "cancelled") return "ยกเลิก";
+  return "รอชำระเงิน";
+}
+
 function successMessage(status: SlipStatus) {
   if (status === "uploaded") {
     return "ระบบได้รับคำสั่งซื้อและสลิปการโอนเงินเรียบร้อยแล้ว แอดมินจะตรวจสอบยอดชำระและอัปเดตสถานะออเดอร์ภายหลัง";
@@ -775,6 +792,10 @@ function SuccessCard({
   const [slipError, setSlipError] = useState("");
   const [slipUploading, setSlipUploading] = useState(false);
   const [slipInputKey, setSlipInputKey] = useState(0);
+  const [promptPayPayment, setPromptPayPayment] =
+    useState<PromptPayPayment | null>(null);
+  const [promptPayLoading, setPromptPayLoading] = useState(false);
+  const [promptPayMessage, setPromptPayMessage] = useState("");
 
   const checkOrderHref =
     successData.orderCode && successData.phone
@@ -830,6 +851,91 @@ function SuccessCard({
 
     setSlipStatus("failed");
     setSlipError("แนบสลิปไม่สำเร็จ กรุณาส่งสลิปทาง LINE OA");
+  }
+
+  async function createPromptPayQr() {
+    if (!successData.orderCode) {
+      setPromptPayMessage("ไม่พบรหัสออเดอร์ กรุณาใช้การแนบสลิปหรือ LINE OA");
+      return;
+    }
+
+    setPromptPayLoading(true);
+    setPromptPayMessage("");
+
+    try {
+      const response = await fetch("/api/payments/omise/create", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          order_code: successData.orderCode,
+          phone: successData.phone,
+        }),
+      });
+      const data = (await response.json()) as
+        | (PromptPayPayment & { error?: string })
+        | { error?: string };
+
+      if (!response.ok || "error" in data) {
+        setPromptPayMessage(
+          data.error || "สร้าง QR พร้อมเพย์ไม่สำเร็จ กรุณาใช้การแนบสลิปหรือ LINE OA",
+        );
+        return;
+      }
+
+      setPromptPayPayment(data as PromptPayPayment);
+      setPromptPayMessage("สร้าง QR พร้อมเพย์โหมดทดสอบแล้ว");
+    } catch {
+      setPromptPayMessage("สร้าง QR พร้อมเพย์ไม่สำเร็จ กรุณาใช้การแนบสลิปหรือ LINE OA");
+    } finally {
+      setPromptPayLoading(false);
+    }
+  }
+
+  async function refreshPromptPayStatus() {
+    if (!successData.orderCode) return;
+
+    setPromptPayLoading(true);
+    setPromptPayMessage("");
+
+    try {
+      const params = new URLSearchParams({
+        order_code: successData.orderCode,
+        phone: successData.phone,
+      });
+      const response = await fetch(`/api/payments/omise/status?${params}`);
+      const data = (await response.json()) as {
+        payment_status?: string | null;
+        amount?: number | null;
+        currency?: string | null;
+        paid_at?: string | null;
+        error?: string;
+      };
+
+      if (!response.ok || data.error) {
+        setPromptPayMessage(
+          data.error || "ตรวจสอบสถานะการชำระเงินไม่สำเร็จ",
+        );
+        return;
+      }
+
+      setPromptPayPayment((current) => ({
+        charge_id: current?.charge_id || null,
+        status: data.payment_status || current?.status || null,
+        amount: data.amount || current?.amount || null,
+        currency: data.currency || current?.currency || "THB",
+        qr_code_uri: current?.qr_code_uri || null,
+        expires_at: current?.expires_at || null,
+      }));
+      setPromptPayMessage(
+        `สถานะล่าสุด: ${promptPayStatusLabel(data.payment_status || null)}`,
+      );
+    } catch {
+      setPromptPayMessage("ตรวจสอบสถานะการชำระเงินไม่สำเร็จ");
+    } finally {
+      setPromptPayLoading(false);
+    }
   }
 
   function downloadOrderSummaryImage() {
@@ -929,6 +1035,80 @@ function SuccessCard({
           <PaymentRow label="ชื่อบัญชี" value={paymentInfo.accountName} multiline />
           <PaymentRow label="เลขที่บัญชี" value={paymentInfo.accountNumber} highlight />
         </dl>
+      </div>
+
+      <div className="mt-4 rounded-xl border border-sky-300/20 bg-sky-300/5 p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className="font-black text-white">ชำระด้วย PromptPay QR</p>
+            <p className="mt-1 text-xs font-bold text-sky-200">
+              โหมดทดสอบ: ยังไม่มีการชำระเงินจริง
+            </p>
+            <p className="mt-1 text-xs leading-5 text-zinc-400">
+              ระบบสร้าง QR จากยอดออเดอร์ในฐานข้อมูลเท่านั้น ถ้าสร้าง QR ไม่สำเร็จยังสามารถแนบสลิปหรือส่งผ่าน LINE OA ได้
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={createPromptPayQr}
+            disabled={promptPayLoading}
+            className="rounded-xl bg-sky-500 px-4 py-3 text-sm font-black text-zinc-950 hover:bg-sky-400 disabled:opacity-60"
+          >
+            {promptPayLoading ? "กำลังสร้าง QR..." : "สร้าง QR พร้อมเพย์"}
+          </button>
+        </div>
+
+        {promptPayPayment ? (
+          <div className="mt-4 grid gap-4 sm:grid-cols-[180px_1fr]">
+            {promptPayPayment.qr_code_uri ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={promptPayPayment.qr_code_uri}
+                alt="PromptPay QR test mode"
+                className="h-44 w-44 rounded-xl border border-white/10 bg-white object-contain p-2"
+              />
+            ) : (
+              <div className="flex h-44 w-44 items-center justify-center rounded-xl border border-white/10 bg-zinc-950 p-4 text-center text-xs text-zinc-500">
+                ไม่พบรูป QR จาก Omise
+              </div>
+            )}
+            <div className="rounded-xl border border-white/10 bg-zinc-950/70 p-4 text-sm">
+              <p className="font-black text-white">
+                {promptPayStatusLabel(promptPayPayment.status)}
+              </p>
+              <p className="mt-2 text-zinc-300">
+                ยอดชำระ:{" "}
+                {(promptPayPayment.amount || successData.totalAmount || 0).toLocaleString(
+                  "th-TH",
+                )}{" "}
+                บาท
+              </p>
+              {promptPayPayment.expires_at ? (
+                <p className="mt-1 text-zinc-400">
+                  หมดอายุ:{" "}
+                  {new Intl.DateTimeFormat("th-TH", {
+                    dateStyle: "medium",
+                    timeStyle: "short",
+                  }).format(new Date(promptPayPayment.expires_at))}
+                </p>
+              ) : null}
+              <button
+                type="button"
+                onClick={refreshPromptPayStatus}
+                disabled={promptPayLoading}
+                className="mt-3 rounded-xl border border-sky-300/30 px-4 py-3 text-sm font-black text-sky-100 hover:bg-sky-300/10 disabled:opacity-60"
+              >
+                ตรวจสอบสถานะการชำระเงิน
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {promptPayMessage ? (
+          <p className="mt-3 text-xs font-bold text-sky-100">
+            {promptPayMessage}
+          </p>
+        ) : null}
       </div>
 
       {slipStatus !== "uploaded" ? (
