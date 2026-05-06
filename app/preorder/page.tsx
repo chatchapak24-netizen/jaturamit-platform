@@ -426,7 +426,7 @@ export default async function PreorderPage({
                       {product.price} บาท
                     </span>
                     <span className="rounded-full border border-white/15 px-3 py-1 text-xs font-bold text-zinc-200 group-hover:border-red-300/60 group-hover:text-red-100">
-                      เลือกสินค้า
+                      เพิ่มลงรายการ
                     </span>
                   </div>
                 </div>
