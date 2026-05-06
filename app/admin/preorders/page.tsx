@@ -1,9 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
+import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase-browser";
+import {
+  FormMessage,
+  PageHeader,
+  useRequireActiveAdmin,
+} from "@/components/admin/preorder/shared";
 
 type PreorderStatus =
   | "pending"
@@ -14,10 +19,11 @@ type PreorderStatus =
   | "shipped"
   | "cancelled";
 
+type FilterValue = "all" | string;
+
 type PreorderOrder = {
+  id: string;
   order_code: string | null;
-  created_at: string | null;
-  updated_at: string | null;
   full_name: string | null;
   phone: string | null;
   team: string | null;
@@ -25,60 +31,105 @@ type PreorderOrder = {
   shirt_name: string | null;
   shirt_number: string | null;
   quantity: number | null;
+  unit_price: number | null;
   delivery_method: string | null;
   address: string | null;
   note: string | null;
   payment_note: string | null;
   total_amount: number | null;
   status: PreorderStatus | string | null;
+  created_at: string | null;
+  updated_at: string | null;
+  campaign_id: string | null;
 };
 
-type FilterValue = "all" | string;
+type PreorderItem = {
+  id: string;
+  preorder_id: string;
+  product_id: string | null;
+  team_slug_snapshot: string | null;
+  team_name_snapshot: string | null;
+  product_name_snapshot: string | null;
+  product_type_snapshot: string | null;
+  unit_price_snapshot: number | null;
+  quantity: number | null;
+  size: string | null;
+  custom_name: string | null;
+  custom_number: string | null;
+  line_total: number | null;
+  created_at: string | null;
+};
 
-const STATUS_OPTIONS: PreorderStatus[] = [
-  "pending",
-  "paid",
-  "confirmed",
-  "production",
-  "ready",
-  "shipped",
-  "cancelled",
+type Campaign = {
+  id: string;
+  name: string;
+  slug: string;
+};
+
+type DisplayItem = {
+  id: string;
+  productName: string;
+  productType: string;
+  team: string;
+  teamSlug: string;
+  size: string;
+  customName: string;
+  customNumber: string;
+  quantity: number;
+  unitPrice: number;
+  lineTotal: number;
+  isLegacy: boolean;
+};
+
+type DisplayOrder = PreorderOrder & {
+  items: DisplayItem[];
+  totalQuantity: number;
+  isLegacy: boolean;
+};
+
+const STATUS_OPTIONS: Array<{ value: PreorderStatus; label: string }> = [
+  { value: "pending", label: "รอตรวจสอบ" },
+  { value: "paid", label: "ชำระเงินแล้ว" },
+  { value: "confirmed", label: "ยืนยันออเดอร์แล้ว" },
+  { value: "production", label: "ส่งผลิตแล้ว" },
+  { value: "ready", label: "พร้อมรับ" },
+  { value: "shipped", label: "จัดส่งแล้ว" },
+  { value: "cancelled", label: "ยกเลิก" },
 ];
-
-const TEAM_OPTIONS = [
-  { value: "photha", label: "โพธา" },
-  { value: "benjamarachutit", label: "เบญจมราชูทิศ" },
-  { value: "daruna", label: "ดรุณาราชบุรี" },
-  { value: "sarasit", label: "สารสิทธิ์พิทยาลัย" },
-];
-
-const SIZE_OPTIONS = ["S", "M", "L", "XL", "2XL", "3XL", "4XL", "5XL"];
 
 const DELIVERY_OPTIONS = [
-  { value: "pickup", label: "รับเอง" },
+  { value: "pickup", label: "รับที่หน้างาน" },
   { value: "shipping", label: "จัดส่ง" },
 ];
 
-const statusLabels: Record<PreorderStatus, string> = {
-  pending: "รอตรวจสอบ",
-  paid: "ชำระแล้ว",
-  confirmed: "ยืนยันแล้ว",
-  production: "กำลังผลิต",
-  ready: "พร้อมรับ/ส่ง",
-  shipped: "จัดส่งแล้ว",
-  cancelled: "ยกเลิก",
+const PRODUCT_TYPE_LABELS: Record<string, string> = {
+  jersey: "เสื้อแข่ง",
+  shorts: "กางเกง",
+  socks: "ถุงเท้า",
+  training_shirt: "เสื้อซ้อม",
+  scarf: "ผ้าพันคอ",
+  souvenir: "ของที่ระลึก",
+  other: "อื่น ๆ",
 };
 
-function teamLabel(team: string | null) {
-  return TEAM_OPTIONS.find((item) => item.value === team)?.label || team || "-";
+function statusLabel(status: string | null) {
+  return (
+    STATUS_OPTIONS.find((option) => option.value === status)?.label ||
+    status ||
+    "รอตรวจสอบ"
+  );
 }
 
 function deliveryLabel(method: string | null) {
   return (
-    DELIVERY_OPTIONS.find((item) => item.value === method)?.label ||
+    DELIVERY_OPTIONS.find((option) => option.value === method)?.label ||
     method ||
     "-"
   );
+}
+
+function productTypeLabel(type: string) {
+  return PRODUCT_TYPE_LABELS[type] || type || "-";
 }
 
 function formatDate(value: string | null) {
@@ -98,52 +149,6 @@ function formatMoney(value: number | null) {
   }).format(value || 0);
 }
 
-function csvCell(value: number | string | null) {
-  const text = String(value ?? "");
-
-  return `"${text.replace(/"/g, '""')}"`;
-}
-
-function buildPreorderCsv(orders: PreorderOrder[]) {
-  const columns = [
-    "order_code",
-    "team",
-    "size",
-    "shirt_name",
-    "shirt_number",
-    "quantity",
-    "full_name",
-    "phone",
-    "delivery_method",
-    "address",
-    "status",
-    "note",
-    "payment_note",
-    "created_at",
-  ];
-  const rows = orders.map((order) => [
-    order.order_code,
-    teamLabel(order.team),
-    order.size,
-    order.shirt_name,
-    order.shirt_number,
-    order.quantity || 0,
-    order.full_name,
-    order.phone,
-    deliveryLabel(order.delivery_method),
-    order.address,
-    order.status || "pending",
-    order.note,
-    order.payment_note,
-    order.created_at,
-  ]);
-
-  return [
-    columns.map(csvCell).join(","),
-    ...rows.map((row) => row.map(csvCell).join(",")),
-  ].join("\r\n");
-}
-
 function statusClass(status: string | null) {
   switch (status) {
     case "paid":
@@ -161,72 +166,165 @@ function statusClass(status: string | null) {
   }
 }
 
+function csvCell(value: number | string | null) {
+  const text = String(value ?? "");
+
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
+function downloadCsv(filename: string, rows: Array<Array<number | string | null>>) {
+  const csv = rows.map((row) => row.map(csvCell).join(",")).join("\r\n");
+  const blob = new Blob([`\uFEFF${csv}`], {
+    type: "text/csv;charset=utf-8;",
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function toDisplayItems(order: PreorderOrder, items: PreorderItem[]) {
+  if (items.length > 0) {
+    return items.map((item) => ({
+      id: item.id,
+      productName: item.product_name_snapshot || "Preorder item",
+      productType: item.product_type_snapshot || "other",
+      team: item.team_name_snapshot || item.team_slug_snapshot || "-",
+      teamSlug: item.team_slug_snapshot || "other",
+      size: item.size || "-",
+      customName: item.custom_name || "-",
+      customNumber: item.custom_number || "-",
+      quantity: item.quantity || 0,
+      unitPrice: item.unit_price_snapshot || 0,
+      lineTotal: item.line_total || 0,
+      isLegacy: false,
+    }));
+  }
+
+  const quantity = order.quantity || 0;
+  const unitPrice = order.unit_price || 0;
+
+  return [
+    {
+      id: `${order.id}-legacy`,
+      productName: "Legacy preorder item",
+      productType: "jersey",
+      team: order.team || "-",
+      teamSlug: order.team || "other",
+      size: order.size || "-",
+      customName: order.shirt_name || "-",
+      customNumber: order.shirt_number || "-",
+      quantity,
+      unitPrice,
+      lineTotal: order.total_amount || unitPrice * quantity,
+      isLegacy: true,
+    },
+  ];
+}
+
+function itemSummary(order: DisplayOrder) {
+  return order.items
+    .slice(0, 2)
+    .map((item) => `${item.productName} x${item.quantity}`)
+    .join(", ");
+}
+
+function isWithinDateRange(order: DisplayOrder, fromDate: string, toDate: string) {
+  if (!order.created_at) return true;
+
+  const createdTime = new Date(order.created_at).getTime();
+  const afterFrom = fromDate
+    ? createdTime >= new Date(`${fromDate}T00:00:00`).getTime()
+    : true;
+  const beforeTo = toDate
+    ? createdTime <= new Date(`${toDate}T23:59:59`).getTime()
+    : true;
+
+  return afterFrom && beforeTo;
+}
+
 export default function AdminPreordersPage() {
   const router = useRouter();
+  const requireActiveAdmin = useRequireActiveAdmin(router);
 
   const [orders, setOrders] = useState<PreorderOrder[]>([]);
+  const [items, setItems] = useState<PreorderItem[]>([]);
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [updatingOrderCode, setUpdatingOrderCode] = useState("");
+  const [savingOrderId, setSavingOrderId] = useState("");
   const [message, setMessage] = useState("");
   const [errorText, setErrorText] = useState("");
-  const [selectedOrder, setSelectedOrder] = useState<PreorderOrder | null>(null);
-  const [statusFilter, setStatusFilter] = useState<FilterValue>("all");
-  const [teamFilter, setTeamFilter] = useState<FilterValue>("all");
-  const [sizeFilter, setSizeFilter] = useState<FilterValue>("all");
-  const [deliveryFilter, setDeliveryFilter] = useState<FilterValue>("all");
+  const [selectedOrder, setSelectedOrder] = useState<DisplayOrder | null>(null);
   const [searchText, setSearchText] = useState("");
-
-  const checkAdmin = useCallback(async () => {
-    const { data: userData } = await supabaseBrowser.auth.getUser();
-
-    if (!userData.user) {
-      router.push("/admin/login");
-      return false;
-    }
-
-    const { data: adminProfile } = await supabaseBrowser
-      .from("admin_users")
-      .select("id")
-      .eq("auth_user_id", userData.user.id)
-      .eq("status", "active")
-      .single();
-
-    if (!adminProfile) {
-      await supabaseBrowser.auth.signOut();
-      router.push("/admin/login");
-      return false;
-    }
-
-    return true;
-  }, [router]);
+  const [statusFilter, setStatusFilter] = useState<FilterValue>("all");
+  const [campaignFilter, setCampaignFilter] = useState<FilterValue>("all");
+  const [teamFilter, setTeamFilter] = useState<FilterValue>("all");
+  const [productTypeFilter, setProductTypeFilter] = useState<FilterValue>("all");
+  const [deliveryFilter, setDeliveryFilter] = useState<FilterValue>("all");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
 
   const loadOrders = useCallback(async () => {
     setErrorText("");
     setRefreshing(true);
 
-    const { data, error } = await supabaseBrowser
+    const { data: campaignRows } = await supabaseBrowser
+      .from("preorder_campaigns")
+      .select("id, name, slug")
+      .order("sort_order", { ascending: true });
+
+    setCampaigns((campaignRows || []) as Campaign[]);
+
+    const { data: orderRows, error: orderError } = await supabaseBrowser
       .from("preorders")
       .select(
-        "order_code, created_at, updated_at, full_name, phone, team, size, shirt_name, shirt_number, quantity, delivery_method, address, note, payment_note, total_amount, status",
+        "id, order_code, full_name, phone, team, size, shirt_name, shirt_number, quantity, unit_price, delivery_method, address, note, payment_note, total_amount, status, created_at, updated_at, campaign_id",
       )
       .order("created_at", { ascending: false })
-      .limit(500);
+      .limit(1000);
 
-    if (error) {
-      setErrorText(error.message);
+    if (orderError) {
+      setErrorText(orderError.message);
       setRefreshing(false);
       return;
     }
 
-    setOrders((data || []) as PreorderOrder[]);
+    const loadedOrders = (orderRows || []) as PreorderOrder[];
+    setOrders(loadedOrders);
+
+    const orderIds = loadedOrders.map((order) => order.id).filter(Boolean);
+    if (orderIds.length === 0) {
+      setItems([]);
+      setRefreshing(false);
+      return;
+    }
+
+    const { data: itemRows, error: itemError } = await supabaseBrowser
+      .from("preorder_order_items")
+      .select(
+        "id, preorder_id, product_id, team_slug_snapshot, team_name_snapshot, product_name_snapshot, product_type_snapshot, unit_price_snapshot, quantity, size, custom_name, custom_number, line_total, created_at",
+      )
+      .in("preorder_id", orderIds)
+      .order("created_at", { ascending: true });
+
+    if (itemError) {
+      setErrorText(itemError.message);
+      setItems([]);
+      setRefreshing(false);
+      return;
+    }
+
+    setItems((itemRows || []) as PreorderItem[]);
     setRefreshing(false);
   }, []);
 
   useEffect(() => {
     async function init() {
       setLoading(true);
-      const isAdmin = await checkAdmin();
+      const isAdmin = await requireActiveAdmin();
       if (!isAdmin) return;
 
       await loadOrders();
@@ -234,558 +332,685 @@ export default function AdminPreordersPage() {
     }
 
     init();
-  }, [checkAdmin, loadOrders]);
+  }, [loadOrders, requireActiveAdmin]);
+
+  const itemMap = useMemo(() => {
+    const map = new Map<string, PreorderItem[]>();
+
+    items.forEach((item) => {
+      const currentItems = map.get(item.preorder_id) || [];
+      currentItems.push(item);
+      map.set(item.preorder_id, currentItems);
+    });
+
+    return map;
+  }, [items]);
+
+  const displayOrders = useMemo<DisplayOrder[]>(() => {
+    return orders.map((order) => {
+      const orderItems = toDisplayItems(order, itemMap.get(order.id) || []);
+      const totalQuantity = orderItems.reduce(
+        (sum, item) => sum + item.quantity,
+        0,
+      );
+
+      return {
+        ...order,
+        items: orderItems,
+        totalQuantity,
+        isLegacy: orderItems.every((item) => item.isLegacy),
+      };
+    });
+  }, [itemMap, orders]);
 
   const filteredOrders = useMemo(() => {
     const query = searchText.trim().toLowerCase();
 
-    return orders.filter((order) => {
-      const matchesStatus =
-        statusFilter === "all" || order.status === statusFilter;
-      const matchesTeam = teamFilter === "all" || order.team === teamFilter;
-      const matchesSize = sizeFilter === "all" || order.size === sizeFilter;
-      const matchesDelivery =
-        deliveryFilter === "all" || order.delivery_method === deliveryFilter;
+    return displayOrders.filter((order) => {
       const matchesSearch =
         !query ||
-        [order.full_name, order.phone, order.order_code].some((value) =>
+        [order.order_code, order.full_name, order.phone].some((value) =>
           (value || "").toLowerCase().includes(query),
         );
+      const matchesStatus =
+        statusFilter === "all" || order.status === statusFilter;
+      const matchesCampaign =
+        campaignFilter === "all" || order.campaign_id === campaignFilter;
+      const matchesTeam =
+        teamFilter === "all" ||
+        order.items.some((item) => item.teamSlug === teamFilter);
+      const matchesProductType =
+        productTypeFilter === "all" ||
+        order.items.some((item) => item.productType === productTypeFilter);
+      const matchesDelivery =
+        deliveryFilter === "all" || order.delivery_method === deliveryFilter;
 
       return (
+        matchesSearch &&
         matchesStatus &&
+        matchesCampaign &&
         matchesTeam &&
-        matchesSize &&
+        matchesProductType &&
         matchesDelivery &&
-        matchesSearch
+        isWithinDateRange(order, fromDate, toDate)
       );
     });
   }, [
+    campaignFilter,
     deliveryFilter,
-    orders,
+    displayOrders,
+    fromDate,
+    productTypeFilter,
     searchText,
-    sizeFilter,
     statusFilter,
     teamFilter,
+    toDate,
   ]);
 
   const summary = useMemo(() => {
-    const totalOrders = filteredOrders.length;
-    const totalQuantity = filteredOrders.reduce(
-      (sum, order) => sum + (order.quantity || 0),
-      0,
-    );
-    const totalAmount = filteredOrders.reduce(
-      (sum, order) => sum + (order.total_amount || 0),
-      0,
-    );
-    const teamCounts = TEAM_OPTIONS.map((team) => ({
-      ...team,
-      count: filteredOrders
-        .filter((order) => order.team === team.value)
-        .reduce((sum, order) => sum + (order.quantity || 0), 0),
-    }));
+    const statusCounts = new Map<string, number>();
+    const teamCounts = new Map<string, number>();
+    let totalQuantity = 0;
+    let totalAmount = 0;
 
-    return { teamCounts, totalAmount, totalOrders, totalQuantity };
+    filteredOrders.forEach((order) => {
+      statusCounts.set(
+        order.status || "pending",
+        (statusCounts.get(order.status || "pending") || 0) + 1,
+      );
+      totalAmount += order.total_amount || 0;
+
+      order.items.forEach((item) => {
+        totalQuantity += item.quantity;
+        teamCounts.set(item.team, (teamCounts.get(item.team) || 0) + item.quantity);
+      });
+    });
+
+    return { statusCounts, teamCounts, totalQuantity, totalAmount };
   }, [filteredOrders]);
 
   const productionSummary = useMemo(() => {
-    const rows = TEAM_OPTIONS.map((team) => {
-      const sizeCounts = SIZE_OPTIONS.map((size) => ({
-        size,
-        count: filteredOrders
-          .filter((order) => order.team === team.value && order.size === size)
-          .reduce((sum, order) => sum + (order.quantity || 0), 0),
-      }));
-      const total = sizeCounts.reduce((sum, item) => sum + item.count, 0);
+    const productMap = new Map<string, { team: string; product: string; size: string; quantity: number }>();
+    const sizeMap = new Map<string, number>();
 
-      return { ...team, sizeCounts, total };
+    filteredOrders.forEach((order) => {
+      order.items.forEach((item) => {
+        const productKey = `${item.team}|${item.productName}|${item.size}`;
+        const current = productMap.get(productKey) || {
+          team: item.team,
+          product: item.productName,
+          size: item.size,
+          quantity: 0,
+        };
+        current.quantity += item.quantity;
+        productMap.set(productKey, current);
+        sizeMap.set(item.size, (sizeMap.get(item.size) || 0) + item.quantity);
+      });
     });
-    const total = rows.reduce((sum, row) => sum + row.total, 0);
 
-    return { rows, total };
+    return {
+      products: Array.from(productMap.values()).sort((a, b) =>
+        `${a.team}${a.product}${a.size}`.localeCompare(
+          `${b.team}${b.product}${b.size}`,
+          "th",
+        ),
+      ),
+      sizes: Array.from(sizeMap.entries()).map(([size, quantity]) => ({
+        size,
+        quantity,
+      })),
+    };
   }, [filteredOrders]);
 
-  function exportCsv() {
+  const teamOptions = useMemo(() => {
+    const teams = new Map<string, string>();
+
+    displayOrders.forEach((order) => {
+      order.items.forEach((item) => teams.set(item.teamSlug, item.team));
+    });
+
+    return Array.from(teams.entries()).map(([value, label]) => ({
+      value,
+      label,
+    }));
+  }, [displayOrders]);
+
+  const productTypeOptions = useMemo(() => {
+    const productTypes = new Set<string>();
+
+    displayOrders.forEach((order) => {
+      order.items.forEach((item) => productTypes.add(item.productType));
+    });
+
+    return Array.from(productTypes.values());
+  }, [displayOrders]);
+
+  async function updateStatus(order: DisplayOrder, status: PreorderStatus) {
+    setSavingOrderId(order.id);
     setMessage("");
     setErrorText("");
-
-    if (filteredOrders.length === 0) {
-      setErrorText("ไม่มีออเดอร์สำหรับ export จากตัวกรองปัจจุบัน");
-      return;
-    }
-
-    const csv = `\uFEFF${buildPreorderCsv(filteredOrders)}`;
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    const timestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
-
-    link.href = url;
-    link.download = `preorders-${timestamp}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
-    setMessage(`Export CSV ${filteredOrders.length} ออเดอร์เรียบร้อยแล้ว`);
-  }
-
-  async function updateStatus(order: PreorderOrder, nextStatus: PreorderStatus) {
-    if (!order.order_code) {
-      setErrorText("ไม่พบ order_code สำหรับอัปเดตสถานะออเดอร์นี้");
-      return;
-    }
-
-    setMessage("");
-    setErrorText("");
-    setUpdatingOrderCode(order.order_code);
 
     const { error } = await supabaseBrowser
       .from("preorders")
-      .update({ status: nextStatus })
-      .eq("order_code", order.order_code);
+      .update({ status })
+      .eq("id", order.id);
 
     if (error) {
       setErrorText(error.message);
-      setUpdatingOrderCode("");
+      setSavingOrderId("");
       return;
     }
 
     setOrders((currentOrders) =>
-      currentOrders.map((item) =>
-        item.order_code === order.order_code
-          ? { ...item, status: nextStatus, updated_at: new Date().toISOString() }
-          : item,
+      currentOrders.map((currentOrder) =>
+        currentOrder.id === order.id ? { ...currentOrder, status } : currentOrder,
       ),
     );
-    setSelectedOrder((currentOrder) =>
-      currentOrder?.order_code === order.order_code
-        ? { ...currentOrder, status: nextStatus, updated_at: new Date().toISOString() }
-        : currentOrder,
-    );
-    setMessage(`อัปเดตสถานะ ${order.order_code} เรียบร้อยแล้ว`);
-    setUpdatingOrderCode("");
+    setMessage("อัปเดตสถานะออเดอร์เรียบร้อยแล้ว");
+    setSavingOrderId("");
+  }
+
+  function exportOrdersCsv() {
+    const rows: Array<Array<number | string | null>> = [
+      [
+        "order_code",
+        "created_at",
+        "full_name",
+        "phone",
+        "delivery_method",
+        "address",
+        "status",
+        "total_amount",
+        "note",
+        "payment_note",
+      ],
+      ...filteredOrders.map((order) => [
+        order.order_code,
+        order.created_at,
+        order.full_name,
+        order.phone,
+        deliveryLabel(order.delivery_method),
+        order.address,
+        statusLabel(order.status),
+        order.total_amount || 0,
+        order.note,
+        order.payment_note,
+      ]),
+    ];
+
+    downloadCsv("preorder-orders.csv", rows);
+  }
+
+  function exportProductionCsv() {
+    const rows: Array<Array<number | string | null>> = [
+      [
+        "order_code",
+        "created_at",
+        "customer_name",
+        "phone",
+        "team",
+        "product_name",
+        "product_type",
+        "size",
+        "custom_name",
+        "custom_number",
+        "quantity",
+        "unit_price",
+        "line_total",
+        "delivery_method",
+        "address",
+        "status",
+        "note",
+      ],
+    ];
+
+    filteredOrders.forEach((order) => {
+      order.items.forEach((item) => {
+        rows.push([
+          order.order_code,
+          order.created_at,
+          order.full_name,
+          order.phone,
+          item.team,
+          item.productName,
+          productTypeLabel(item.productType),
+          item.size,
+          item.customName === "-" ? "" : item.customName,
+          item.customNumber === "-" ? "" : item.customNumber,
+          item.quantity,
+          item.unitPrice,
+          item.lineTotal,
+          deliveryLabel(order.delivery_method),
+          order.address,
+          statusLabel(order.status),
+          order.note,
+        ]);
+      });
+    });
+
+    downloadCsv("preorder-production.csv", rows);
   }
 
   if (loading) {
     return (
-      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
-        <p className="text-zinc-400">กำลังโหลดข้อมูลพรีออเดอร์...</p>
+      <main className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
+        <p className="text-zinc-400">กำลังตรวจสอบสิทธิ์...</p>
       </main>
     );
   }
 
   return (
-    <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
-      <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.3em] text-red-300">
-            Admin / Preorders
-          </p>
-          <h1 className="mt-2 text-3xl font-black text-white sm:text-4xl">
-            พรีออเดอร์เสื้อ
-          </h1>
-          <p className="mt-3 max-w-2xl text-sm text-zinc-400 sm:text-base">
-            ดูรายการสั่งซื้อ ตรวจข้อมูลลูกค้า และจัดการสถานะงานผลิตเสื้อจตุรมิตรราชบุรี ครั้งที่ 2
-          </p>
-        </div>
+    <main className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <PageHeader
+          eyebrow="Admin / Preorders"
+          title="ออเดอร์พรีออเดอร์"
+          description="ดูรายการสั่งซื้อ จัดการสถานะ และ export CSV สำหรับตรวจยอดหรือส่งผลิต"
+        />
 
         <div className="flex flex-wrap gap-3">
-          <Link
-            href="/admin"
-            className="rounded-2xl border border-white/10 px-4 py-3 text-sm font-bold text-zinc-200 hover:bg-white/10"
-          >
-            กลับหลังบ้าน
-          </Link>
-          <button
-            onClick={exportCsv}
-            disabled={filteredOrders.length === 0}
-            className="rounded-2xl border border-emerald-400/40 bg-emerald-500/10 px-4 py-3 text-sm font-black text-emerald-100 hover:bg-emerald-500/20 disabled:opacity-60"
-          >
-            Export CSV
-          </button>
           <button
             onClick={loadOrders}
             disabled={refreshing}
-            className="rounded-2xl bg-red-600 px-4 py-3 text-sm font-black text-white hover:bg-red-500 disabled:opacity-60"
+            className="rounded-xl border border-white/10 px-4 py-3 text-sm font-bold text-zinc-200 hover:bg-white/10 disabled:opacity-60"
           >
-            {refreshing ? "กำลังโหลด..." : "รีเฟรชข้อมูล"}
+            {refreshing ? "กำลังโหลด..." : "รีเฟรช"}
+          </button>
+          <button
+            onClick={exportOrdersCsv}
+            className="rounded-xl border border-red-400/40 bg-red-500/10 px-4 py-3 text-sm font-bold text-red-100 hover:bg-red-500/20"
+          >
+            Export Orders CSV
+          </button>
+          <button
+            onClick={exportProductionCsv}
+            className="rounded-xl bg-red-600 px-4 py-3 text-sm font-bold text-white hover:bg-red-500"
+          >
+            Export Production CSV
           </button>
         </div>
       </div>
 
-      {message && (
-        <div className="mb-5 rounded-2xl border border-emerald-500/40 bg-emerald-950/40 p-4 text-sm text-emerald-100">
-          {message}
-        </div>
-      )}
+      <FormMessage message={message} tone="success" />
+      <FormMessage message={errorText} tone="error" />
 
-      {errorText && (
-        <div className="mb-5 rounded-2xl border border-red-500/40 bg-red-950/40 p-4 text-sm text-red-100">
-          {errorText}
-        </div>
-      )}
+      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <SummaryCard label="ออเดอร์ทั้งหมด" value={filteredOrders.length} />
+        <SummaryCard label="จำนวนสินค้ารวม" value={summary.totalQuantity} />
+        <SummaryCard label="ยอดเงินรวม" value={formatMoney(summary.totalAmount)} />
+        <SummaryCard label="สถานะรอตรวจสอบ" value={summary.statusCounts.get("pending") || 0} />
+      </section>
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <div className="rounded-2xl border border-white/10 bg-zinc-900 p-4">
-          <p className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">
-            Orders
-          </p>
-          <p className="mt-2 text-3xl font-black">{summary.totalOrders}</p>
-          <p className="mt-1 text-sm text-zinc-400">ออเดอร์ตามตัวกรอง</p>
-        </div>
-        <div className="rounded-2xl border border-white/10 bg-zinc-900 p-4">
-          <p className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">
-            Shirts
-          </p>
-          <p className="mt-2 text-3xl font-black">{summary.totalQuantity}</p>
-          <p className="mt-1 text-sm text-zinc-400">จำนวนเสื้อทั้งหมด</p>
-        </div>
-        <div className="rounded-2xl border border-white/10 bg-zinc-900 p-4">
-          <p className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">
-            Revenue
-          </p>
-          <p className="mt-2 text-3xl font-black">
-            {formatMoney(summary.totalAmount)}
-          </p>
-          <p className="mt-1 text-sm text-zinc-400">ยอดเงินรวม</p>
-        </div>
-        <div className="rounded-2xl border border-white/10 bg-zinc-900 p-4">
-          <p className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">
-            Teams
-          </p>
-          <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
-            {summary.teamCounts.map((team) => (
-              <div
-                key={team.value}
-                className="rounded-xl border border-white/10 bg-zinc-950 px-3 py-2"
-              >
-                <p className="truncate text-zinc-400">{team.label}</p>
-                <p className="font-black text-white">{team.count}</p>
-              </div>
+      <section className="mt-6 rounded-2xl border border-white/10 bg-zinc-900/70 p-4">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <input
+            value={searchText}
+            onChange={(event) => setSearchText(event.target.value)}
+            placeholder="ค้นหา order_code, ชื่อ, เบอร์โทร"
+            className="rounded-xl border border-white/10 bg-zinc-950 px-4 py-3 text-sm text-white outline-none focus:border-red-300"
+          />
+          <SelectFilter value={statusFilter} onChange={setStatusFilter}>
+            <option value="all">ทุกสถานะ</option>
+            {STATUS_OPTIONS.map((status) => (
+              <option key={status.value} value={status.value}>
+                {status.label}
+              </option>
             ))}
-          </div>
+          </SelectFilter>
+          <SelectFilter value={campaignFilter} onChange={setCampaignFilter}>
+            <option value="all">ทุกแคมเปญ</option>
+            {campaigns.map((campaign) => (
+              <option key={campaign.id} value={campaign.id}>
+                {campaign.name}
+              </option>
+            ))}
+          </SelectFilter>
+          <SelectFilter value={teamFilter} onChange={setTeamFilter}>
+            <option value="all">ทุกทีม</option>
+            {teamOptions.map((team) => (
+              <option key={team.value} value={team.value}>
+                {team.label}
+              </option>
+            ))}
+          </SelectFilter>
+          <SelectFilter value={productTypeFilter} onChange={setProductTypeFilter}>
+            <option value="all">ทุกประเภทสินค้า</option>
+            {productTypeOptions.map((type) => (
+              <option key={type} value={type}>
+                {productTypeLabel(type)}
+              </option>
+            ))}
+          </SelectFilter>
+          <SelectFilter value={deliveryFilter} onChange={setDeliveryFilter}>
+            <option value="all">ทุกวิธีรับสินค้า</option>
+            {DELIVERY_OPTIONS.map((method) => (
+              <option key={method.value} value={method.value}>
+                {method.label}
+              </option>
+            ))}
+          </SelectFilter>
+          <input
+            type="date"
+            value={fromDate}
+            onChange={(event) => setFromDate(event.target.value)}
+            className="rounded-xl border border-white/10 bg-zinc-950 px-4 py-3 text-sm text-white outline-none focus:border-red-300"
+          />
+          <input
+            type="date"
+            value={toDate}
+            onChange={(event) => setToDate(event.target.value)}
+            className="rounded-xl border border-white/10 bg-zinc-950 px-4 py-3 text-sm text-white outline-none focus:border-red-300"
+          />
         </div>
       </section>
 
-      <section className="mt-6 rounded-2xl border border-white/10 bg-zinc-900 p-4">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">
-              Production Summary
+      <section className="mt-6 grid gap-4 lg:grid-cols-[1fr_360px]">
+        <div className="overflow-hidden rounded-2xl border border-white/10 bg-zinc-900/70">
+          <div className="overflow-x-auto">
+            <table className="min-w-[1100px] w-full text-left text-sm">
+              <thead className="border-b border-white/10 bg-zinc-950/80 text-xs uppercase tracking-[0.18em] text-zinc-500">
+                <tr>
+                  <th className="px-4 py-3">Order</th>
+                  <th className="px-4 py-3">วันที่</th>
+                  <th className="px-4 py-3">ลูกค้า</th>
+                  <th className="px-4 py-3">รายการ</th>
+                  <th className="px-4 py-3">จำนวน</th>
+                  <th className="px-4 py-3">ยอดรวม</th>
+                  <th className="px-4 py-3">รับสินค้า</th>
+                  <th className="px-4 py-3">สถานะ</th>
+                  <th className="px-4 py-3">รายละเอียด</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/10">
+                {filteredOrders.map((order) => (
+                  <tr key={order.id} className="align-top text-zinc-200">
+                    <td className="px-4 py-4 font-bold">
+                      {order.order_code || "-"}
+                      {order.isLegacy ? (
+                        <span className="mt-2 block rounded-full border border-amber-400/30 px-2 py-1 text-xs text-amber-200">
+                          legacy
+                        </span>
+                      ) : null}
+                    </td>
+                    <td className="px-4 py-4 text-zinc-400">
+                      {formatDate(order.created_at)}
+                    </td>
+                    <td className="px-4 py-4">
+                      <p className="font-bold">{order.full_name || "-"}</p>
+                      <p className="text-zinc-400">{order.phone || "-"}</p>
+                    </td>
+                    <td className="px-4 py-4">
+                      <p>{itemSummary(order) || "-"}</p>
+                      {order.items.length > 2 ? (
+                        <p className="text-xs text-zinc-500">
+                          +{order.items.length - 2} รายการ
+                        </p>
+                      ) : null}
+                    </td>
+                    <td className="px-4 py-4 font-bold">{order.totalQuantity}</td>
+                    <td className="px-4 py-4 font-bold text-red-100">
+                      {formatMoney(order.total_amount)}
+                    </td>
+                    <td className="px-4 py-4">{deliveryLabel(order.delivery_method)}</td>
+                    <td className="px-4 py-4">
+                      <select
+                        value={order.status || "pending"}
+                        disabled={savingOrderId === order.id}
+                        onChange={(event) =>
+                          updateStatus(order, event.target.value as PreorderStatus)
+                        }
+                        className={`rounded-xl border px-3 py-2 text-xs font-bold outline-none ${statusClass(order.status)}`}
+                      >
+                        {STATUS_OPTIONS.map((status) => (
+                          <option key={status.value} value={status.value}>
+                            {status.label}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="px-4 py-4">
+                      <button
+                        onClick={() => setSelectedOrder(order)}
+                        className="rounded-xl border border-white/10 px-3 py-2 text-xs font-bold text-zinc-200 hover:bg-white/10"
+                      >
+                        ดูรายละเอียด
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {filteredOrders.length === 0 ? (
+            <div className="p-8 text-center text-zinc-400">
+              ไม่พบออเดอร์ตามเงื่อนไขที่เลือก
+            </div>
+          ) : null}
+        </div>
+
+        <aside className="space-y-4">
+          <SummaryPanel title="จำนวนตามทีม" entries={Array.from(summary.teamCounts.entries())} />
+          <ProductionSummary
+            productRows={productionSummary.products}
+            sizeRows={productionSummary.sizes}
+          />
+        </aside>
+      </section>
+
+      {selectedOrder ? (
+        <OrderDetailPanel
+          order={selectedOrder}
+          onClose={() => setSelectedOrder(null)}
+        />
+      ) : null}
+    </main>
+  );
+}
+
+function SummaryCard({
+  label,
+  value,
+}: {
+  label: string;
+  value: number | string;
+}) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-zinc-900/70 p-5">
+      <p className="text-sm text-zinc-400">{label}</p>
+      <p className="mt-2 text-3xl font-black text-white">{value}</p>
+    </div>
+  );
+}
+
+function SelectFilter({
+  value,
+  onChange,
+  children,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  children: ReactNode;
+}) {
+  return (
+    <select
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      className="rounded-xl border border-white/10 bg-zinc-950 px-4 py-3 text-sm text-white outline-none focus:border-red-300"
+    >
+      {children}
+    </select>
+  );
+}
+
+function SummaryPanel({
+  title,
+  entries,
+}: {
+  title: string;
+  entries: Array<[string, number]>;
+}) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-zinc-900/70 p-5">
+      <h2 className="text-lg font-black">{title}</h2>
+      <div className="mt-4 space-y-2">
+        {entries.length > 0 ? (
+          entries.map(([label, value]) => (
+            <div key={label} className="flex items-center justify-between text-sm">
+              <span className="text-zinc-400">{label}</span>
+              <span className="font-bold text-white">{value}</span>
+            </div>
+          ))
+        ) : (
+          <p className="text-sm text-zinc-500">ยังไม่มีข้อมูล</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ProductionSummary({
+  productRows,
+  sizeRows,
+}: {
+  productRows: Array<{
+    team: string;
+    product: string;
+    size: string;
+    quantity: number;
+  }>;
+  sizeRows: Array<{ size: string; quantity: number }>;
+}) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-zinc-900/70 p-5">
+      <h2 className="text-lg font-black">สรุปส่งผลิต</h2>
+      <div className="mt-4 max-h-72 space-y-2 overflow-auto pr-1">
+        {productRows.slice(0, 20).map((row) => (
+          <div
+            key={`${row.team}-${row.product}-${row.size}`}
+            className="rounded-xl bg-zinc-950/70 p-3 text-sm"
+          >
+            <p className="font-bold text-white">{row.product}</p>
+            <p className="text-zinc-400">
+              {row.team} / ไซส์ {row.size} / รวม {row.quantity}
             </p>
-            <h2 className="mt-2 text-2xl font-black text-white">
-              สรุปจำนวนผลิตตามทีมและไซส์
+          </div>
+        ))}
+        {productRows.length === 0 ? (
+          <p className="text-sm text-zinc-500">ยังไม่มีข้อมูล</p>
+        ) : null}
+      </div>
+      <div className="mt-4 border-t border-white/10 pt-4">
+        <p className="text-sm font-bold text-zinc-300">รวมตามไซส์</p>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {sizeRows.map((row) => (
+            <span
+              key={row.size}
+              className="rounded-full border border-white/10 px-3 py-1 text-xs text-zinc-300"
+            >
+              {row.size}: {row.quantity}
+            </span>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function OrderDetailPanel({
+  order,
+  onClose,
+}: {
+  order: DisplayOrder;
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 bg-black/70 p-4 backdrop-blur-sm">
+      <div className="ml-auto h-full max-w-3xl overflow-auto rounded-2xl border border-white/10 bg-zinc-950 p-5 shadow-2xl">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-sm uppercase tracking-[0.25em] text-red-300">
+              Order Detail
+            </p>
+            <h2 className="mt-2 text-2xl font-black">
+              {order.order_code || "-"}
             </h2>
           </div>
-          <p className="text-sm font-bold text-zinc-300">
-            รวมทั้งหมด {productionSummary.total} ตัว
-          </p>
+          <button
+            onClick={onClose}
+            className="rounded-xl border border-white/10 px-3 py-2 text-sm font-bold text-zinc-200 hover:bg-white/10"
+          >
+            ปิด
+          </button>
         </div>
 
-        <div className="mt-4 overflow-x-auto">
-          <table className="min-w-[720px] w-full text-left text-sm">
-            <thead className="border-b border-white/10 text-xs uppercase tracking-[0.15em] text-zinc-500">
-              <tr>
-                <th className="px-3 py-3">Team</th>
-                {SIZE_OPTIONS.map((size) => (
-                  <th key={size} className="px-3 py-3 text-center">
-                    {size}
-                  </th>
-                ))}
-                <th className="px-3 py-3 text-center">Total</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-white/10">
-              {productionSummary.rows.map((row) => (
-                <tr key={row.value}>
-                  <td className="px-3 py-3 font-bold text-white">{row.label}</td>
-                  {row.sizeCounts.map((item) => (
-                    <td
-                      key={`${row.value}-${item.size}`}
-                      className="px-3 py-3 text-center text-zinc-300"
-                    >
-                      {item.count}
-                    </td>
-                  ))}
-                  <td className="px-3 py-3 text-center font-black text-white">
-                    {row.total}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="mt-6 grid gap-3 sm:grid-cols-2">
+          <Detail label="วันที่สั่ง" value={formatDate(order.created_at)} />
+          <Detail label="อัปเดตล่าสุด" value={formatDate(order.updated_at)} />
+          <Detail label="ชื่อลูกค้า" value={order.full_name || "-"} />
+          <Detail label="เบอร์โทร" value={order.phone || "-"} />
+          <Detail label="วิธีรับสินค้า" value={deliveryLabel(order.delivery_method)} />
+          <Detail label="สถานะ" value={statusLabel(order.status)} />
+          <Detail label="ยอดรวม" value={formatMoney(order.total_amount)} />
+          <Detail label="ที่อยู่" value={order.address || "-"} wide />
+          <Detail label="หมายเหตุ" value={order.note || "-"} wide />
+          <Detail label="หมายเหตุการชำระเงิน" value={order.payment_note || "-"} wide />
         </div>
-      </section>
 
-      <section className="mt-6 rounded-2xl border border-white/10 bg-zinc-900 p-4">
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-          <label className="block">
-            <span className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">
-              Search
-            </span>
-            <input
-              value={searchText}
-              onChange={(event) => setSearchText(event.target.value)}
-              placeholder="ชื่อ / เบอร์ / order_code"
-              className="mt-2 w-full rounded-xl border border-white/10 bg-zinc-950 px-3 py-3 text-sm text-white outline-none focus:border-red-400"
-            />
-          </label>
-
-          <label className="block">
-            <span className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">
-              Status
-            </span>
-            <select
-              value={statusFilter}
-              onChange={(event) => setStatusFilter(event.target.value)}
-              className="mt-2 w-full rounded-xl border border-white/10 bg-zinc-950 px-3 py-3 text-sm text-white outline-none focus:border-red-400"
+        <div className="mt-6 space-y-3">
+          <h3 className="text-lg font-black">รายการสินค้า</h3>
+          {order.items.map((item) => (
+            <div
+              key={item.id}
+              className="rounded-2xl border border-white/10 bg-zinc-900 p-4"
             >
-              <option value="all">ทั้งหมด</option>
-              {STATUS_OPTIONS.map((status) => (
-                <option key={status} value={status}>
-                  {statusLabels[status]}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="block">
-            <span className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">
-              Team
-            </span>
-            <select
-              value={teamFilter}
-              onChange={(event) => setTeamFilter(event.target.value)}
-              className="mt-2 w-full rounded-xl border border-white/10 bg-zinc-950 px-3 py-3 text-sm text-white outline-none focus:border-red-400"
-            >
-              <option value="all">ทั้งหมด</option>
-              {TEAM_OPTIONS.map((team) => (
-                <option key={team.value} value={team.value}>
-                  {team.label}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="block">
-            <span className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">
-              Size
-            </span>
-            <select
-              value={sizeFilter}
-              onChange={(event) => setSizeFilter(event.target.value)}
-              className="mt-2 w-full rounded-xl border border-white/10 bg-zinc-950 px-3 py-3 text-sm text-white outline-none focus:border-red-400"
-            >
-              <option value="all">ทั้งหมด</option>
-              {SIZE_OPTIONS.map((size) => (
-                <option key={size} value={size}>
-                  {size}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="block">
-            <span className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">
-              Delivery
-            </span>
-            <select
-              value={deliveryFilter}
-              onChange={(event) => setDeliveryFilter(event.target.value)}
-              className="mt-2 w-full rounded-xl border border-white/10 bg-zinc-950 px-3 py-3 text-sm text-white outline-none focus:border-red-400"
-            >
-              <option value="all">ทั้งหมด</option>
-              {DELIVERY_OPTIONS.map((delivery) => (
-                <option key={delivery.value} value={delivery.value}>
-                  {delivery.label}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-      </section>
-
-      <section className="mt-6 overflow-hidden rounded-2xl border border-white/10 bg-zinc-900">
-        <div className="overflow-x-auto">
-          <table className="min-w-[1180px] w-full text-left text-sm">
-            <thead className="border-b border-white/10 bg-zinc-950 text-xs uppercase tracking-[0.15em] text-zinc-500">
-              <tr>
-                <th className="px-4 py-3">Order</th>
-                <th className="px-4 py-3">Date</th>
-                <th className="px-4 py-3">Customer</th>
-                <th className="px-4 py-3">Phone</th>
-                <th className="px-4 py-3">Team</th>
-                <th className="px-4 py-3">Size</th>
-                <th className="px-4 py-3">Name</th>
-                <th className="px-4 py-3">No.</th>
-                <th className="px-4 py-3">Qty</th>
-                <th className="px-4 py-3">Delivery</th>
-                <th className="px-4 py-3">Total</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3">Detail</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-white/10">
-              {filteredOrders.map((order, index) => (
-                <tr
-                  key={order.order_code || `${order.phone}-${index}`}
-                  className="hover:bg-white/[0.03]"
-                >
-                  <td className="px-4 py-4 font-bold text-white">
-                    {order.order_code || "-"}
-                  </td>
-                  <td className="px-4 py-4 text-zinc-300">
-                    {formatDate(order.created_at)}
-                  </td>
-                  <td className="px-4 py-4 text-white">{order.full_name || "-"}</td>
-                  <td className="px-4 py-4 text-zinc-300">{order.phone || "-"}</td>
-                  <td className="px-4 py-4 text-zinc-300">
-                    {teamLabel(order.team)}
-                  </td>
-                  <td className="px-4 py-4 font-bold text-white">
-                    {order.size || "-"}
-                  </td>
-                  <td className="px-4 py-4 text-zinc-300">
-                    {order.shirt_name || "-"}
-                  </td>
-                  <td className="px-4 py-4 text-zinc-300">
-                    {order.shirt_number || "-"}
-                  </td>
-                  <td className="px-4 py-4 font-bold text-white">
-                    {order.quantity || 0}
-                  </td>
-                  <td className="px-4 py-4 text-zinc-300">
-                    {deliveryLabel(order.delivery_method)}
-                  </td>
-                  <td className="px-4 py-4 font-bold text-white">
-                    {formatMoney(order.total_amount)}
-                  </td>
-                  <td className="px-4 py-4">
-                    <select
-                      value={(order.status || "pending") as PreorderStatus}
-                      onChange={(event) =>
-                        updateStatus(order, event.target.value as PreorderStatus)
-                      }
-                      disabled={
-                        !order.order_code ||
-                        updatingOrderCode === order.order_code
-                      }
-                      className={`rounded-xl border px-3 py-2 text-xs font-bold outline-none disabled:opacity-60 ${statusClass(
-                        order.status,
-                      )}`}
-                    >
-                      {STATUS_OPTIONS.map((status) => (
-                        <option key={status} value={status}>
-                          {statusLabels[status]}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-                  <td className="px-4 py-4">
-                    <button
-                      onClick={() => setSelectedOrder(order)}
-                      className="rounded-xl border border-white/10 px-3 py-2 text-xs font-bold text-zinc-200 hover:bg-white/10"
-                    >
-                      ดูรายละเอียด
-                    </button>
-                  </td>
-                </tr>
-              ))}
-
-              {filteredOrders.length === 0 && (
-                <tr>
-                  <td colSpan={13} className="px-4 py-10 text-center text-zinc-400">
-                    ไม่พบออเดอร์จากตัวกรองนี้
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      {selectedOrder && (
-        <div className="fixed inset-0 z-50 flex items-end bg-black/70 p-3 sm:items-center sm:justify-center">
-          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-3xl border border-white/10 bg-zinc-950 p-5 shadow-2xl">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-[0.25em] text-red-300">
-                  Order Detail
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p className="font-black text-white">{item.productName}</p>
+                  <p className="text-sm text-zinc-400">
+                    {item.team} / {productTypeLabel(item.productType)}
+                  </p>
+                </div>
+                <p className="font-bold text-red-100">
+                  {formatMoney(item.lineTotal)}
                 </p>
-                <h2 className="mt-2 text-2xl font-black text-white">
-                  {selectedOrder.order_code || "ไม่มี order_code"}
-                </h2>
               </div>
-              <button
-                onClick={() => setSelectedOrder(null)}
-                className="rounded-xl border border-white/10 px-3 py-2 text-sm font-bold text-zinc-300 hover:bg-white/10"
-              >
-                ปิด
-              </button>
+              <div className="mt-3 grid gap-2 text-sm text-zinc-300 sm:grid-cols-4">
+                <span>ไซส์: {item.size}</span>
+                <span>ชื่อ: {item.customName}</span>
+                <span>เบอร์: {item.customNumber}</span>
+                <span>จำนวน: {item.quantity}</span>
+              </div>
+              <p className="mt-2 text-sm text-zinc-500">
+                ราคา {formatMoney(item.unitPrice)} / ชิ้น
+              </p>
             </div>
-
-            <dl className="mt-6 grid gap-4 sm:grid-cols-2">
-              <div>
-                <dt className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">
-                  Address
-                </dt>
-                <dd className="mt-2 whitespace-pre-wrap text-zinc-100">
-                  {selectedOrder.address || "-"}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">
-                  Payment Note
-                </dt>
-                <dd className="mt-2 whitespace-pre-wrap text-zinc-100">
-                  {selectedOrder.payment_note || "-"}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">
-                  Note
-                </dt>
-                <dd className="mt-2 whitespace-pre-wrap text-zinc-100">
-                  {selectedOrder.note || "-"}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">
-                  Updated
-                </dt>
-                <dd className="mt-2 text-zinc-100">
-                  {formatDate(selectedOrder.updated_at)}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">
-                  Created
-                </dt>
-                <dd className="mt-2 text-zinc-100">
-                  {formatDate(selectedOrder.created_at)}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">
-                  Status
-                </dt>
-                <dd className="mt-2">
-                  <span
-                    className={`inline-flex rounded-full border px-3 py-1 text-xs font-bold ${statusClass(
-                      selectedOrder.status,
-                    )}`}
-                  >
-                    {statusLabels[
-                      (selectedOrder.status || "pending") as PreorderStatus
-                    ] || selectedOrder.status}
-                  </span>
-                </dd>
-              </div>
-            </dl>
-          </div>
+          ))}
         </div>
-      )}
-    </main>
+      </div>
+    </div>
+  );
+}
+
+function Detail({
+  label,
+  value,
+  wide,
+}: {
+  label: string;
+  value: string;
+  wide?: boolean;
+}) {
+  return (
+    <div
+      className={`rounded-xl border border-white/10 bg-zinc-900/70 p-4 ${
+        wide ? "sm:col-span-2" : ""
+      }`}
+    >
+      <p className="text-xs uppercase tracking-[0.18em] text-zinc-500">{label}</p>
+      <p className="mt-2 whitespace-pre-wrap text-sm font-semibold text-zinc-100">
+        {value}
+      </p>
+    </div>
   );
 }
