@@ -53,11 +53,18 @@ export function getPaymentEnv(): { env: PaymentEnv | null; error: string | null 
   const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!omiseSecretKey || !supabaseUrl || !supabaseServiceRoleKey) {
-    return { env: null, error: "payment environment is not configured" };
+    return {
+      env: null,
+      error:
+        "ระบบยังไม่ได้ตั้งค่า ENV สำหรับ PromptPay ให้ครบ กรุณาตรวจ OMISE_SECRET_KEY, OMISE_MODE และ SUPABASE_SERVICE_ROLE_KEY",
+    };
   }
 
   if (omiseMode !== "test" || omiseSecretKey.startsWith("skey_live_")) {
-    return { env: null, error: "promptpay payment is limited to test mode" };
+    return {
+      env: null,
+      error: "PromptPay ในระบบนี้เปิดเฉพาะ Omise test mode เท่านั้น",
+    };
   }
 
   return {
@@ -141,11 +148,50 @@ export async function retrieveCharge(secretKey: string, chargeId: string) {
 }
 
 export function promptPayQrUri(charge: OmiseCharge) {
-  return (
+  const directUri =
     charge.source?.scannable_code?.image?.download_uri ||
     charge.source?.scannable_code?.image?.uri ||
-    null
-  );
+    null;
+
+  if (directUri) {
+    return directUri;
+  }
+
+  return findQrImageUri(charge);
+}
+
+function findQrImageUri(value: unknown): string | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const result = findQrImageUri(item);
+      if (result) return result;
+    }
+
+    return null;
+  }
+
+  const record = value as Record<string, unknown>;
+  const downloadUri = record.download_uri;
+  const uri = record.uri;
+
+  if (typeof downloadUri === "string" && downloadUri.startsWith("http")) {
+    return downloadUri;
+  }
+
+  if (typeof uri === "string" && uri.startsWith("http")) {
+    return uri;
+  }
+
+  for (const nestedValue of Object.values(record)) {
+    const result = findQrImageUri(nestedValue);
+    if (result) return result;
+  }
+
+  return null;
 }
 
 export function mappedPaymentStatus(charge: OmiseCharge) {
