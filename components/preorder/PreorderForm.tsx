@@ -67,6 +67,7 @@ type PromptPayPayment = {
   currency: string | null;
   qr_code_uri: string | null;
   expires_at: string | null;
+  has_qr?: boolean;
 };
 
 type PaymentInfoValue = {
@@ -885,7 +886,11 @@ function SuccessCard({
       }
 
       setPromptPayPayment(data as PromptPayPayment);
-      setPromptPayMessage("สร้าง QR พร้อมเพย์โหมดทดสอบแล้ว");
+      setPromptPayMessage(
+        (data as PromptPayPayment).qr_code_uri
+          ? "สร้าง QR พร้อมเพย์โหมดทดสอบแล้ว"
+          : "สร้างรายการ PromptPay แล้ว แต่ยังไม่พบรูป QR จาก Omise กรุณาใช้การแนบสลิปหรือ LINE OA ก่อน",
+      );
     } catch {
       setPromptPayMessage("สร้าง QR พร้อมเพย์ไม่สำเร็จ กรุณาใช้การแนบสลิปหรือ LINE OA");
     } finally {
@@ -1105,7 +1110,7 @@ function SuccessCard({
         ) : null}
 
         {promptPayMessage ? (
-          <p className="mt-3 text-xs font-bold text-sky-100">
+          <p className="mt-3 rounded-xl border border-sky-300/20 bg-zinc-950/60 p-3 text-xs font-bold text-sky-100">
             {promptPayMessage}
           </p>
         ) : null}

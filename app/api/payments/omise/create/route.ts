@@ -50,7 +50,7 @@ export async function POST(request: Request) {
 
   const { env, error: envError } = getPaymentEnv();
   if (!env) {
-    return jsonResponse({ error: envError }, 500);
+    return jsonResponse({ error: envError, code: "PAYMENT_ENV_MISSING" }, 500);
   }
 
   const supabase = createServiceSupabase(env);
@@ -62,22 +62,31 @@ export async function POST(request: Request) {
     .maybeSingle();
 
   if (orderError) {
-    return jsonResponse({ error: "ไม่สามารถสร้าง QR พร้อมเพย์ได้" }, 500);
+    return jsonResponse(
+      { error: "ไม่สามารถค้นหาออเดอร์เพื่อสร้าง QR ได้", code: "ORDER_LOOKUP_FAILED" },
+      500,
+    );
   }
 
   if (!order) {
-    return jsonResponse({ error: "ไม่พบออเดอร์" }, 404);
+    return jsonResponse({ error: "ไม่พบออเดอร์", code: "ORDER_NOT_FOUND" }, 404);
   }
 
   const preorder = order as PreorderPaymentOrder;
   const amountBaht = Number(preorder.total_amount || 0);
 
   if (preorder.status === "cancelled") {
-    return jsonResponse({ error: "ออเดอร์นี้ถูกยกเลิกแล้ว" }, 409);
+    return jsonResponse(
+      { error: "ออเดอร์นี้ถูกยกเลิกแล้ว", code: "ORDER_CANCELLED" },
+      409,
+    );
   }
 
   if (!Number.isInteger(amountBaht) || amountBaht <= 0) {
-    return jsonResponse({ error: "ยอดชำระไม่ถูกต้อง" }, 400);
+    return jsonResponse(
+      { error: "ยอดชำระไม่ถูกต้อง", code: "INVALID_AMOUNT" },
+      400,
+    );
   }
 
   try {
@@ -109,7 +118,14 @@ export async function POST(request: Request) {
       });
 
     if (insertError) {
-      return jsonResponse({ error: "ไม่สามารถบันทึกข้อมูลการชำระเงินได้" }, 500);
+      return jsonResponse(
+        {
+          error:
+            "สร้าง charge แล้ว แต่บันทึกข้อมูลการชำระเงินไม่ได้ กรุณาตรวจว่าได้รัน SQL preorder_payments แล้ว",
+          code: "PAYMENT_RECORD_SAVE_FAILED",
+        },
+        500,
+      );
     }
 
     return jsonResponse(
@@ -120,10 +136,18 @@ export async function POST(request: Request) {
         currency: "THB",
         qr_code_uri: qrCodeUri,
         expires_at: charge.expires_at || null,
+        has_qr: Boolean(qrCodeUri),
       },
       200,
     );
   } catch {
-    return jsonResponse({ error: "ไม่สามารถสร้าง QR พร้อมเพย์ได้" }, 502);
+    return jsonResponse(
+      {
+        error:
+          "Omise ไม่สามารถสร้าง QR พร้อมเพย์ได้ กรุณาตรวจ test secret key และสถานะบัญชี",
+        code: "OMISE_CREATE_FAILED",
+      },
+      502,
+    );
   }
 }
