@@ -118,13 +118,6 @@ export default function PreorderForm({
     if (product.requires_size && !draft.size) {
       return "กรุณาเลือกไซส์";
     }
-    if (product.requires_custom_name && !draft.custom_name.trim()) {
-      return "กรุณากรอกชื่อบนเสื้อ";
-    }
-    if (product.requires_custom_number && !draft.custom_number.trim()) {
-      return "กรุณากรอกเบอร์เสื้อ";
-    }
-
     return "";
   }
 
@@ -317,10 +310,7 @@ export default function PreorderForm({
           ) : null}
 
           {selectedProduct?.allows_custom_name ? (
-            <Field
-              label="ชื่อบนเสื้อ"
-              required={selectedProduct.requires_custom_name}
-            >
+            <Field label="ชื่อบนเสื้อ">
               <input
                 className={inputClass}
                 value={draft.custom_name}
@@ -332,10 +322,7 @@ export default function PreorderForm({
           ) : null}
 
           {selectedProduct?.allows_custom_number ? (
-            <Field
-              label="เบอร์เสื้อ"
-              required={selectedProduct.requires_custom_number}
-            >
+            <Field label="เบอร์เสื้อ">
               <input
                 className={inputClass}
                 inputMode="numeric"
