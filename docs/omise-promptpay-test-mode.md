@@ -36,8 +36,11 @@ The webhook route does not trust the webhook payload alone. It retrieves the cha
 Run:
 
 ```text
+supabase/migrations/20260506_preorder_order_code_generation.sql
 supabase/migrations/20260506_preorder_promptpay_payment_foundation.sql
 ```
+
+The order-code migration ensures new and existing preorder rows have a customer-facing code such as `JR2026-0001`. PromptPay, slip upload, and check-order all depend on `order_code` plus `phone`.
 
 The migration creates `public.preorder_payments` with RLS enabled. Public users cannot select or modify payment rows directly. Active admins can read payment rows through the existing `admin_users` pattern.
 
