@@ -105,9 +105,15 @@ function safeText(value: string | null) {
   return value?.trim() || "-";
 }
 
+function queryParam(name: string) {
+  if (typeof window === "undefined") return "";
+
+  return new URLSearchParams(window.location.search).get(name) || "";
+}
+
 export default function CheckOrderPage() {
-  const [orderCode, setOrderCode] = useState("");
-  const [phone, setPhone] = useState("");
+  const [orderCode, setOrderCode] = useState(() => queryParam("order_code"));
+  const [phone, setPhone] = useState(() => queryParam("phone"));
   const [result, setResult] = useState<LookupResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
