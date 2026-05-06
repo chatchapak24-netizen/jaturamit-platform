@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-const LINE_OA_URL = "https://lin.ee/0dRHmzW";
+const LINE_OA_URL = "https://lin.ee/YmJhMlp";
 
 export default function PaymentInfo({
   bankName,

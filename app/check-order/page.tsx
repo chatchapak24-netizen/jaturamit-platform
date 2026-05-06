@@ -4,7 +4,7 @@ import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 
-const LINE_OA_URL = "https://lin.ee/0dRHmzW";
+const LINE_OA_URL = "https://lin.ee/YmJhMlp";
 const SLIP_BUCKET = "preorder-slips";
 const MAX_SLIP_SIZE_BYTES = 5 * 1024 * 1024;
 const ALLOWED_SLIP_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
@@ -19,6 +19,9 @@ type LookupOrder = {
   delivery_method: string | null;
   has_shipping_address?: boolean | null;
   has_slip?: boolean | null;
+  payment_status?: string | null;
+  payment_method?: string | null;
+  payment_paid_at?: string | null;
 };
 
 type LookupItem = {
@@ -72,6 +75,15 @@ function deliveryLabel(method: string | null) {
 
 function productTypeLabel(type: string | null) {
   return type ? productTypeLabels[type] || type : "-";
+}
+
+function paymentStatusLabel(status: string | null) {
+  if (status === "successful") return "ชำระเงินแล้ว";
+  if (status === "pending") return "รอชำระเงิน";
+  if (status === "failed") return "ชำระไม่สำเร็จ";
+  if (status === "expired") return "QR หมดอายุ";
+  if (status === "cancelled") return "ยกเลิก";
+  return "ยังไม่มีรายการชำระผ่าน PromptPay";
 }
 
 function formatDate(value: string | null) {
@@ -191,7 +203,30 @@ export default function CheckOrderPage() {
       return;
     }
 
-    setResult(data as LookupResult);
+    const lookupResult = data as LookupResult;
+
+    try {
+      const params = new URLSearchParams({
+        order_code: cleanOrderCode,
+        phone: cleanPhone,
+      });
+      const paymentResponse = await fetch(`/api/payments/omise/status?${params}`);
+      const paymentData = (await paymentResponse.json()) as {
+        payment_status?: string | null;
+        payment_method?: string | null;
+        paid_at?: string | null;
+      };
+
+      if (paymentResponse.ok) {
+        lookupResult.order.payment_status = paymentData.payment_status || null;
+        lookupResult.order.payment_method = paymentData.payment_method || null;
+        lookupResult.order.payment_paid_at = paymentData.paid_at || null;
+      }
+    } catch {
+      // Payment status is optional in this foundation PR; order lookup should still work.
+    }
+
+    setResult(lookupResult);
   }
 
   function markSlipAttached() {
@@ -428,6 +463,13 @@ function LookupResultCard({
               : "ยังไม่พบสลิป หากชำระเงินแล้วสามารถแนบสลิปในเว็บหรือส่งทาง LINE OA ได้"
           }
         />
+        <Detail
+          label="สถานะ PromptPay"
+          value={paymentStatusLabel(order.payment_status || null)}
+        />
+        {order.payment_paid_at ? (
+          <Detail label="เวลาชำระเงิน" value={formatDate(order.payment_paid_at)} />
+        ) : null}
       </dl>
 
       {!order.has_slip ? (
