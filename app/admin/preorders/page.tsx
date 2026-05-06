@@ -112,6 +112,20 @@ const PRODUCT_TYPE_LABELS: Record<string, string> = {
   other: "อื่น ๆ",
 };
 
+const PREORDER_ITEM_BATCH_SIZE = 50;
+const PREORDER_ITEM_SELECT =
+  "id, preorder_id, product_id, team_slug_snapshot, team_name_snapshot, product_name_snapshot, product_type_snapshot, unit_price_snapshot, quantity, size, custom_name, custom_number, line_total, created_at";
+
+function chunkArray<T>(items: T[], size: number) {
+  const chunks: T[][] = [];
+
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size));
+  }
+
+  return chunks;
+}
+
 function statusLabel(status: string | null) {
   return (
     STATUS_OPTIONS.find((option) => option.value === status)?.label ||
@@ -302,22 +316,29 @@ export default function AdminPreordersPage() {
       return;
     }
 
-    const { data: itemRows, error: itemError } = await supabaseBrowser
-      .from("preorder_order_items")
-      .select(
-        "id, preorder_id, product_id, team_slug_snapshot, team_name_snapshot, product_name_snapshot, product_type_snapshot, unit_price_snapshot, quantity, size, custom_name, custom_number, line_total, created_at",
-      )
-      .in("preorder_id", orderIds)
-      .order("created_at", { ascending: true });
+    const loadedItems: PreorderItem[] = [];
 
-    if (itemError) {
-      setErrorText(itemError.message);
-      setItems([]);
-      setRefreshing(false);
-      return;
+    // Batch IDs to avoid long PostgREST URLs when the dashboard has many orders.
+    for (const orderIdBatch of chunkArray(orderIds, PREORDER_ITEM_BATCH_SIZE)) {
+      const { data: itemRows, error: itemError } = await supabaseBrowser
+        .from("preorder_order_items")
+        .select(PREORDER_ITEM_SELECT)
+        .in("preorder_id", orderIdBatch)
+        .order("created_at", { ascending: true });
+
+      if (itemError) {
+        setErrorText(
+          "ไม่สามารถโหลดรายการสินค้าในออเดอร์ได้ กรุณาลองรีเฟรชอีกครั้ง",
+        );
+        setItems([]);
+        setRefreshing(false);
+        return;
+      }
+
+      loadedItems.push(...((itemRows || []) as PreorderItem[]));
     }
 
-    setItems((itemRows || []) as PreorderItem[]);
+    setItems(loadedItems);
     setRefreshing(false);
   }, []);
 
