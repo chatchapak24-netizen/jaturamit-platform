@@ -294,6 +294,10 @@ function LookupResultCard({ result }: { result: LookupResult }) {
       {!order.has_slip ? (
         <a
           href={LINE_OA_URL}
+          onClick={(event) => {
+            event.preventDefault();
+            window.open(LINE_OA_URL, "_blank", "noopener,noreferrer");
+          }}
           target="_blank"
           rel="noopener noreferrer"
           className="mt-5 inline-flex rounded-2xl border border-emerald-300/30 bg-emerald-300/10 px-5 py-3 text-sm font-black text-emerald-50 hover:bg-emerald-300/20"

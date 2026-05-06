@@ -75,6 +75,10 @@ export default function PaymentInfo({
         </p>
         <a
           href={LINE_OA_URL}
+          onClick={(event) => {
+            event.preventDefault();
+            window.open(LINE_OA_URL, "_blank", "noopener,noreferrer");
+          }}
           target="_blank"
           rel="noopener noreferrer"
           className="mt-3 inline-flex rounded-xl bg-emerald-500 px-4 py-3 text-sm font-black text-zinc-950 hover:bg-emerald-400"

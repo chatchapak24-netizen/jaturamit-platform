@@ -376,6 +376,10 @@ export default function PreorderForm({
     }
   }
 
+  function openLineOA() {
+    window.open(LINE_OA_URL, "_blank", "noopener,noreferrer");
+  }
+
   if (products.length === 0) {
     return (
       <div className="rounded-2xl border border-white/10 bg-zinc-900 p-5 text-zinc-300 md:p-7">
@@ -571,6 +575,14 @@ export default function PreorderForm({
           )}
         </div>
 
+        <SlipUploadPanel
+          slipInputKey={slipInputKey}
+          slipError={slipError}
+          slipFile={slipFile}
+          onSlipFileChange={updateSlipFile}
+          onOpenLineOA={openLineOA}
+        />
+
         <div className="mt-6 grid gap-4 md:grid-cols-2">
           <Field label="ชื่อ-นามสกุล" required>
             <input
@@ -659,37 +671,6 @@ export default function PreorderForm({
             />
           </Field>
 
-          <Field label="แนบสลิปการโอนเงิน">
-            <input
-              key={slipInputKey}
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              onChange={(event) => updateSlipFile(event.target.files?.[0] || null)}
-              className="w-full rounded-xl border border-dashed border-white/15 bg-zinc-950 px-4 py-3 text-sm text-zinc-300 file:mr-4 file:rounded-lg file:border-0 file:bg-red-600 file:px-4 file:py-2 file:text-sm file:font-bold file:text-white hover:file:bg-red-500"
-            />
-            <span className="block text-xs leading-5 text-zinc-500">
-              รองรับไฟล์ JPG, PNG, WEBP ขนาดไม่เกิน 5MB ถ้าแนบไม่ได้ สามารถส่งสลิปทาง LINE OA ได้ภายหลัง
-            </span>
-            {slipError ? (
-              <span className="block text-xs font-bold text-red-200">
-                {slipError}
-              </span>
-            ) : null}
-            {slipFile ? (
-              <span className="block text-xs font-bold text-emerald-200">
-                เลือกไฟล์แล้ว: {slipFile.name}
-              </span>
-            ) : null}
-          </Field>
-
-          <a
-            href={LINE_OA_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="rounded-xl border border-emerald-300/30 bg-emerald-300/10 px-4 py-3 text-center text-sm font-black text-emerald-50 hover:bg-emerald-300/20"
-          >
-            ส่งสลิป / ติดต่อแอดมินทาง LINE OA
-          </a>
         </div>
 
         {errorText && (
@@ -745,6 +726,61 @@ function Field({
       </span>
       {children}
     </label>
+  );
+}
+
+function SlipUploadPanel({
+  slipInputKey,
+  slipError,
+  slipFile,
+  onSlipFileChange,
+  onOpenLineOA,
+}: {
+  slipInputKey: number;
+  slipError: string;
+  slipFile: File | null;
+  onSlipFileChange: (file: File | null) => void;
+  onOpenLineOA: () => void;
+}) {
+  return (
+    <div className="mt-5 rounded-2xl border border-emerald-300/20 bg-emerald-300/5 p-4">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h3 className="font-black text-white">แนบสลิปการโอนเงิน</h3>
+          <p className="mt-1 text-xs leading-5 text-zinc-500">
+            แนบสลิปพร้อมรายการสั่งซื้อ หรือส่งสลิปทาง LINE OA ภายหลังได้
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onOpenLineOA}
+          className="rounded-xl border border-emerald-300/30 px-4 py-3 text-sm font-black text-emerald-50 hover:bg-emerald-300/10"
+        >
+          ส่งผ่าน LINE OA
+        </button>
+      </div>
+
+      <div className="mt-4 space-y-2">
+        <input
+          key={slipInputKey}
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          onChange={(event) => onSlipFileChange(event.target.files?.[0] || null)}
+          className="w-full rounded-xl border border-dashed border-white/15 bg-zinc-950 px-4 py-3 text-sm text-zinc-300 file:mr-4 file:rounded-lg file:border-0 file:bg-red-600 file:px-4 file:py-2 file:text-sm file:font-bold file:text-white hover:file:bg-red-500"
+        />
+        <p className="text-xs leading-5 text-zinc-500">
+          รองรับไฟล์ JPG, PNG, WEBP ขนาดไม่เกิน 5MB ถ้าแนบไม่ได้ สามารถส่งสลิปทาง LINE OA ได้ภายหลัง
+        </p>
+        {slipError ? (
+          <p className="text-xs font-bold text-red-200">{slipError}</p>
+        ) : null}
+        {slipFile ? (
+          <p className="text-xs font-bold text-emerald-200">
+            เลือกไฟล์แล้ว: {slipFile.name}
+          </p>
+        ) : null}
+      </div>
+    </div>
   );
 }
 
@@ -894,6 +930,10 @@ function SuccessCard({
         ) : null}
         <a
           href={LINE_OA_URL}
+          onClick={(event) => {
+            event.preventDefault();
+            window.open(LINE_OA_URL, "_blank", "noopener,noreferrer");
+          }}
           target="_blank"
           rel="noopener noreferrer"
           className="rounded-xl border border-emerald-300/30 bg-emerald-300/10 px-4 py-3 text-center text-sm font-black text-emerald-50 hover:bg-emerald-300/20"
