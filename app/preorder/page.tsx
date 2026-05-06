@@ -54,6 +54,7 @@ type ProductRow = Omit<PreorderProduct, "team"> & {
 type VisualConfig = {
   coverImageUrl: string;
   teamImageUrls: Record<string, string>;
+  customFieldsEnabled: boolean;
 };
 
 type PreorderPageData =
@@ -176,6 +177,18 @@ async function getPreorderPageData(): Promise<PreorderPageData> {
           ? visualConfig.teamImageUrls[teamMap.get(product.team_id)?.slug || ""]
           : "") ||
         null,
+      allows_custom_name: visualConfig.customFieldsEnabled
+        ? product.allows_custom_name
+        : false,
+      requires_custom_name: visualConfig.customFieldsEnabled
+        ? product.requires_custom_name
+        : false,
+      allows_custom_number: visualConfig.customFieldsEnabled
+        ? product.allows_custom_number
+        : false,
+      requires_custom_number: visualConfig.customFieldsEnabled
+        ? product.requires_custom_number
+        : false,
       team: product.team_id ? teamMap.get(product.team_id) || null : null,
     })),
     visualConfig,
@@ -191,7 +204,11 @@ async function getPreorderVisualConfig(
     .in("key", ["preorder_config", "preorder_custom_fields_enabled"]);
 
   if (error) {
-    return { coverImageUrl: "", teamImageUrls: {} };
+    return {
+      coverImageUrl: "",
+      teamImageUrls: {},
+      customFieldsEnabled: true,
+    };
   }
 
   const preorderConfig = data?.find((item) => item.key === "preorder_config");
@@ -206,6 +223,7 @@ async function getPreorderVisualConfig(
   return {
     coverImageUrl: config.coverImageUrl,
     teamImageUrls: config.teamImageUrls,
+    customFieldsEnabled: config.customFieldsEnabled,
   };
 }
 
