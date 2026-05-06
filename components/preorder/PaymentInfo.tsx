@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 
+const LINE_OA_URL = "https://lin.ee/0dRHmzW";
+
 export default function PaymentInfo({
   bankName,
   accountName,
@@ -65,6 +67,25 @@ export default function PaymentInfo({
           <dd className="mt-2 font-black text-white">{accountNumber}</dd>
         </div>
       </dl>
+
+      <div className="mt-5 rounded-xl border border-emerald-300/20 bg-zinc-950/50 p-4">
+        <p className="text-sm leading-6 text-emerald-50/90">
+          หากแนบสลิปในเว็บไม่ได้ กรุณาส่งสลิปทาง LINE OA พร้อมแจ้งรหัสออเดอร์
+          ชื่อผู้สั่งซื้อ และเบอร์โทร
+        </p>
+        <a
+          href={LINE_OA_URL}
+          onClick={(event) => {
+            event.preventDefault();
+            window.open(LINE_OA_URL, "_blank", "noopener,noreferrer");
+          }}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-3 inline-flex rounded-xl bg-emerald-500 px-4 py-3 text-sm font-black text-zinc-950 hover:bg-emerald-400"
+        >
+          ส่งสลิป / ติดต่อแอดมินทาง LINE OA
+        </a>
+      </div>
     </article>
   );
 }

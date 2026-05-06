@@ -4,6 +4,8 @@ import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 
+const LINE_OA_URL = "https://lin.ee/0dRHmzW";
+
 type LookupOrder = {
   order_code: string | null;
   status: string | null;
@@ -12,6 +14,7 @@ type LookupOrder = {
   total_amount: number | null;
   delivery_method: string | null;
   has_shipping_address?: boolean | null;
+  has_slip?: boolean | null;
 };
 
 type LookupItem = {
@@ -278,7 +281,30 @@ function LookupResultCard({ result }: { result: LookupResult }) {
             }
           />
         ) : null}
+        <Detail
+          label="สถานะสลิป"
+          value={
+            order.has_slip
+              ? "ได้รับสลิปแล้ว"
+              : "ยังไม่พบสลิป หากชำระเงินแล้วสามารถส่งสลิปทาง LINE OA ได้"
+          }
+        />
       </dl>
+
+      {!order.has_slip ? (
+        <a
+          href={LINE_OA_URL}
+          onClick={(event) => {
+            event.preventDefault();
+            window.open(LINE_OA_URL, "_blank", "noopener,noreferrer");
+          }}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-5 inline-flex rounded-2xl border border-emerald-300/30 bg-emerald-300/10 px-5 py-3 text-sm font-black text-emerald-50 hover:bg-emerald-300/20"
+        >
+          ส่งสลิป / ติดต่อแอดมินทาง LINE OA
+        </a>
+      ) : null}
 
       <div className="mt-6 space-y-3">
         <h3 className="text-lg font-black">รายการสินค้า</h3>
