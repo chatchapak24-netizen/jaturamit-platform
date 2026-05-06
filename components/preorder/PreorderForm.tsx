@@ -254,6 +254,7 @@ export default function PreorderForm({
   return (
     <form
       onSubmit={handleSubmit}
+      noValidate
       className="grid gap-5 lg:grid-cols-[0.95fr_1.05fr]"
     >
       <section className="rounded-2xl border border-white/10 bg-zinc-900 p-5 shadow-2xl shadow-black/30 md:p-7">
@@ -273,7 +274,6 @@ export default function PreorderForm({
               className={inputClass}
               value={draft.product_id}
               onChange={(event) => updateSelectedProduct(event.target.value)}
-              required
             >
               {products.map((product) => (
                 <option key={product.id} value={product.id}>
@@ -306,7 +306,6 @@ export default function PreorderForm({
                     size: event.target.value as SizeValue,
                   })
                 }
-                required
               >
                 {SIZE_OPTIONS.map((size) => (
                   <option key={size} value={size}>
@@ -328,7 +327,6 @@ export default function PreorderForm({
                 onChange={(event) =>
                   setDraft({ ...draft, custom_name: event.target.value })
                 }
-                required={selectedProduct.requires_custom_name}
               />
             </Field>
           ) : null}
@@ -345,7 +343,6 @@ export default function PreorderForm({
                 onChange={(event) =>
                   setDraft({ ...draft, custom_number: event.target.value })
                 }
-                required={selectedProduct.requires_custom_number}
               />
             </Field>
           ) : null}
@@ -362,7 +359,6 @@ export default function PreorderForm({
                   quantity: Number(event.target.value) || 1,
                 })
               }
-              required
             />
           </Field>
 
@@ -448,7 +444,6 @@ export default function PreorderForm({
                   full_name: event.target.value,
                 })
               }
-              required
             />
           </Field>
 
@@ -463,7 +458,6 @@ export default function PreorderForm({
                   phone: event.target.value,
                 })
               }
-              required
             />
           </Field>
 
@@ -477,7 +471,6 @@ export default function PreorderForm({
                   delivery_method: event.target.value as DeliveryValue,
                 })
               }
-              required
             >
               {DELIVERY_OPTIONS.map((delivery) => (
                 <option key={delivery.value} value={delivery.value}>
