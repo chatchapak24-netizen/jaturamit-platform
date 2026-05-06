@@ -2,6 +2,7 @@
 
 import type { FormEvent, ReactNode } from "react";
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import type { PreorderCampaign, PreorderProduct } from "@/components/preorder/types";
 
@@ -37,8 +38,27 @@ type CartItem = ItemDraft & {
   product: PreorderProduct;
 };
 
+type CreateOrderResponse = {
+  success?: boolean;
+  order_id?: string;
+  order_code?: string | null;
+  total_amount?: number | null;
+};
+
+type SuccessState = {
+  orderCode: string | null;
+  totalAmount: number | null;
+  phone: string;
+};
+
 const inputClass =
   "w-full rounded-xl border border-white/10 bg-zinc-950 px-4 py-3 text-white outline-none transition placeholder:text-zinc-600 focus:border-red-300";
+
+const DEFAULT_PAYMENT = {
+  bankName: "ออมสิน",
+  accountName: "นางวาสนา เรื่องแตง\nบัญชีร้านลิงชิงบอล สปอร์ต",
+  accountNumber: "020477888224",
+};
 
 function createInitialCustomerForm(): CustomerFormState {
   return {
@@ -81,7 +101,15 @@ export default function PreorderForm({
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [errorText, setErrorText] = useState("");
-  const [successText, setSuccessText] = useState("");
+  const [successData, setSuccessData] = useState<SuccessState | null>(null);
+  const [copyMessage, setCopyMessage] = useState("");
+
+  const paymentInfo = {
+    bankName: campaign.payment_bank_name || DEFAULT_PAYMENT.bankName,
+    accountName: campaign.payment_account_name || DEFAULT_PAYMENT.accountName,
+    accountNumber:
+      campaign.payment_account_number || DEFAULT_PAYMENT.accountNumber,
+  };
 
   const selectedProduct = useMemo(
     () => products.find((product) => product.id === draft.product_id) || null,
@@ -107,7 +135,7 @@ export default function PreorderForm({
 
     setDraft(createDraft(nextProduct));
     setErrorText("");
-    setSuccessText("");
+    setSuccessData(null);
   }
 
   function validateDraft(product: PreorderProduct | null) {
@@ -131,7 +159,7 @@ export default function PreorderForm({
     const validationError = validateDraft(selectedProduct);
 
     setErrorText("");
-    setSuccessText("");
+    setSuccessData(null);
 
     if (validationError) {
       setErrorText(validationError);
@@ -163,13 +191,13 @@ export default function PreorderForm({
       currentItems.filter((item) => item.id !== itemId),
     );
     setErrorText("");
-    setSuccessText("");
+    setSuccessData(null);
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setErrorText("");
-    setSuccessText("");
+    setSuccessData(null);
 
     if (cartItems.length === 0) {
       return setErrorText("กรุณาเพิ่มสินค้าอย่างน้อย 1 รายการ");
@@ -224,14 +252,15 @@ export default function PreorderForm({
         return;
       }
 
-      const orderCode =
-        Array.isArray(data) && data[0]?.order_code
-          ? ` เลขออเดอร์ ${data[0].order_code}`
-          : "";
+      const responseRow = Array.isArray(data)
+        ? (data[0] as CreateOrderResponse | undefined)
+        : undefined;
 
-      setSuccessText(
-        `ระบบได้รับข้อมูลการสั่งซื้อเรียบร้อยแล้ว${orderCode} กรุณาส่งสลิปทาง LINE OA ลิงชิงบอล สปอร์ต พร้อมแจ้งชื่อและเบอร์โทร แอดมินจะตรวจสอบยอดและยืนยันออเดอร์อีกครั้ง`,
-      );
+      setSuccessData({
+        orderCode: responseRow?.order_code || null,
+        totalAmount: responseRow?.total_amount ?? cartTotal,
+        phone: customerForm.phone.trim(),
+      });
       setCustomerForm(createInitialCustomerForm());
       setCartItems([]);
       setDraft(createDraft(selectedProduct));
@@ -239,6 +268,15 @@ export default function PreorderForm({
       setErrorText("ไม่สามารถส่งคำสั่งซื้อได้ กรุณาลองใหม่อีกครั้ง");
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function copyAccountNumber() {
+    try {
+      await navigator.clipboard.writeText(paymentInfo.accountNumber);
+      setCopyMessage("คัดลอกเลขบัญชีแล้ว");
+    } catch {
+      setCopyMessage("คัดลอกไม่สำเร็จ กรุณาคัดลอกด้วยตนเอง");
     }
   }
 
@@ -532,11 +570,18 @@ export default function PreorderForm({
           </p>
         )}
 
-        {successText && (
-          <p className="mt-5 rounded-xl border border-emerald-500/40 bg-emerald-950/50 p-4 text-sm text-emerald-100">
-            {successText}
-          </p>
-        )}
+        {successData ? (
+          <SuccessCard
+            successData={successData}
+            paymentInfo={paymentInfo}
+            copyMessage={copyMessage}
+            onCopyAccountNumber={copyAccountNumber}
+            onOrderMore={() => {
+              setSuccessData(null);
+              setCopyMessage("");
+            }}
+          />
+        ) : null}
 
         <button
           type="submit"
@@ -571,5 +616,122 @@ function Field({
       </span>
       {children}
     </label>
+  );
+}
+
+function SuccessCard({
+  successData,
+  paymentInfo,
+  copyMessage,
+  onCopyAccountNumber,
+  onOrderMore,
+}: {
+  successData: SuccessState;
+  paymentInfo: {
+    bankName: string;
+    accountName: string;
+    accountNumber: string;
+  };
+  copyMessage: string;
+  onCopyAccountNumber: () => void;
+  onOrderMore: () => void;
+}) {
+  const checkOrderHref =
+    successData.orderCode && successData.phone
+      ? `/check-order?order_code=${encodeURIComponent(
+          successData.orderCode,
+        )}&phone=${encodeURIComponent(successData.phone)}`
+      : "/check-order";
+
+  return (
+    <div className="mt-5 rounded-2xl border border-emerald-400/40 bg-emerald-950/30 p-5 text-emerald-50 shadow-2xl shadow-emerald-950/20">
+      <p className="text-xs font-bold uppercase tracking-[0.24em] text-emerald-200">
+        Order Submitted
+      </p>
+      <h3 className="mt-2 text-2xl font-black">
+        ส่งคำสั่งซื้อเรียบร้อยแล้ว
+      </h3>
+      <p className="mt-3 text-sm leading-6 text-emerald-50/90">
+        ระบบได้รับข้อมูลการสั่งซื้อของคุณแล้ว กรุณาโอนเงินและส่งสลิปทาง LINE
+        OA ลิงชิงบอล สปอร์ต พร้อมแจ้งชื่อผู้สั่งซื้อและเบอร์โทร
+      </p>
+
+      <div className="mt-5 grid gap-3 sm:grid-cols-2">
+        {successData.orderCode ? (
+          <div className="rounded-xl border border-white/10 bg-zinc-950/70 p-4">
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-zinc-500">
+              รหัสออเดอร์
+            </p>
+            <p className="mt-2 text-xl font-black text-white">
+              {successData.orderCode}
+            </p>
+          </div>
+        ) : null}
+        {successData.totalAmount !== null ? (
+          <div className="rounded-xl border border-white/10 bg-zinc-950/70 p-4">
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-zinc-500">
+              ยอดชำระ
+            </p>
+            <p className="mt-2 text-xl font-black text-white">
+              {successData.totalAmount.toLocaleString("th-TH")} บาท
+            </p>
+          </div>
+        ) : null}
+      </div>
+
+      <div className="mt-4 rounded-xl border border-white/10 bg-zinc-950/70 p-4">
+        <p className="text-sm font-black text-white">ข้อมูลชำระเงิน</p>
+        <dl className="mt-3 grid gap-2 text-sm text-zinc-300">
+          <div className="flex justify-between gap-3">
+            <dt>ธนาคาร</dt>
+            <dd className="font-bold text-white">{paymentInfo.bankName}</dd>
+          </div>
+          <div className="flex justify-between gap-3">
+            <dt>ชื่อบัญชี</dt>
+            <dd className="whitespace-pre-line text-right font-bold text-white">
+              {paymentInfo.accountName}
+            </dd>
+          </div>
+          <div className="flex justify-between gap-3">
+            <dt>เลขที่บัญชี</dt>
+            <dd className="font-black text-red-100">
+              {paymentInfo.accountNumber}
+            </dd>
+          </div>
+        </dl>
+      </div>
+
+      <p className="mt-4 rounded-xl border border-amber-300/30 bg-amber-300/10 p-4 text-sm leading-6 text-amber-100">
+        สถานะเริ่มต้นของออเดอร์คือ รอตรวจสอบยอด
+        แอดมินจะอัปเดตสถานะหลังตรวจสอบสลิป
+      </p>
+
+      <div className="mt-5 grid gap-3 sm:grid-cols-3">
+        <button
+          type="button"
+          onClick={onCopyAccountNumber}
+          className="rounded-xl border border-white/10 px-4 py-3 text-sm font-black text-white hover:bg-white/10"
+        >
+          คัดลอกเลขบัญชี
+        </button>
+        <Link
+          href={checkOrderHref}
+          className="rounded-xl bg-red-600 px-4 py-3 text-center text-sm font-black text-white hover:bg-red-500"
+        >
+          ตรวจสอบสถานะออเดอร์
+        </Link>
+        <button
+          type="button"
+          onClick={onOrderMore}
+          className="rounded-xl border border-white/10 px-4 py-3 text-sm font-black text-white hover:bg-white/10"
+        >
+          สั่งเพิ่ม
+        </button>
+      </div>
+
+      {copyMessage ? (
+        <p className="mt-3 text-sm font-bold text-emerald-100">{copyMessage}</p>
+      ) : null}
+    </div>
   );
 }
