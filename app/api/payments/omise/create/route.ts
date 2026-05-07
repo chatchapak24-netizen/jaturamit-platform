@@ -25,6 +25,72 @@ type PreorderPaymentOrder = {
   status: string | null;
 };
 
+function decodeJwtRole(token: string) {
+  const payload = token.split(".")[1];
+  if (!payload) return null;
+
+  try {
+    const normalizedPayload = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const parsedPayload = JSON.parse(
+      Buffer.from(normalizedPayload, "base64").toString("utf8"),
+    ) as { role?: unknown };
+
+    return typeof parsedPayload.role === "string" ? parsedPayload.role : null;
+  } catch {
+    return null;
+  }
+}
+
+function serviceKeyDebug(value: string) {
+  if (value.startsWith("eyJ")) {
+    return {
+      kind: "legacy_jwt",
+      role: decodeJwtRole(value),
+    };
+  }
+
+  if (value.startsWith("sb_secret_")) {
+    return {
+      kind: "sb_secret",
+      role: null,
+    };
+  }
+
+  if (value.startsWith("sb_publishable_")) {
+    return {
+      kind: "sb_publishable",
+      role: null,
+    };
+  }
+
+  return {
+    kind: "unknown",
+    role: null,
+  };
+}
+
+function safeSupabaseHost(value: string) {
+  try {
+    return new URL(value).host;
+  } catch {
+    return "invalid-url";
+  }
+}
+
+function envDebugPayload(env: {
+  supabaseUrl: string;
+  supabaseServiceRoleKey: string;
+}) {
+  if (process.env.OMISE_MODE !== "test") {
+    return undefined;
+  }
+
+  return {
+    supabase_host: safeSupabaseHost(env.supabaseUrl),
+    service_key: serviceKeyDebug(env.supabaseServiceRoleKey),
+  };
+}
+
 function supabaseDebugPayload(error: {
   code?: string;
   message?: string;
@@ -92,6 +158,7 @@ export async function POST(request: Request) {
         {
           error: `ไม่สามารถค้นหาออเดอร์เพื่อสร้าง QR ได้ (${orderError.code || "SUPABASE_ERROR"}: ${orderError.message || "unknown error"})`,
           code: "ORDER_LOOKUP_FAILED",
+          env_debug: envDebugPayload(env),
           debug: supabaseDebugPayload(orderError),
         },
         500,
