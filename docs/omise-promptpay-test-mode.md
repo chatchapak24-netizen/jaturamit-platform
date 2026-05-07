@@ -18,12 +18,15 @@ Client/public variables:
 
 ```text
 NEXT_PUBLIC_OMISE_PUBLIC_KEY=pkey_test_xxx
+NEXT_PUBLIC_OMISE_MODE=test
 NEXT_PUBLIC_APP_URL=https://jaturamit-platform.vercel.app
 ```
 
 `OMISE_PAYMENTS_ENABLED=false` disables PromptPay API routes without changing code. Use this as an emergency switch while keeping slip upload and LINE OA available.
 
 `OMISE_MODE=live` is blocked unless `OMISE_ALLOW_LIVE_PAYMENTS=true` is also set. Do not enable live mode until the live-mode checklist below is complete.
+
+`NEXT_PUBLIC_OMISE_MODE` controls customer-facing copy only. Keep it aligned with `OMISE_MODE` so the preorder success page shows the correct test/live payment message.
 
 ## Webhook URL
 
@@ -101,7 +104,8 @@ Then redeploy. Slip upload and LINE OA do not depend on Omise.
 - Confirm public users cannot read `preorder_payments`, `preorders`, or `preorder_order_items`.
 - Replace test keys with live keys only after approval.
 - Set `OMISE_MODE=live`.
+- Set `NEXT_PUBLIC_OMISE_MODE=live`.
 - Set `OMISE_ALLOW_LIVE_PAYMENTS=true` only when ready to accept real payments.
 - Reconfigure the webhook in the live Omise dashboard.
 - Run a low-value real transaction test.
-- Remove or update customer-facing test-mode copy before public launch.
+- Confirm the preorder success page no longer shows test-mode copy.

@@ -8,6 +8,9 @@ import type { PreorderCampaign, PreorderProduct } from "@/components/preorder/ty
 
 const SIZE_OPTIONS = ["S", "M", "L", "XL", "2XL", "3XL", "4XL", "5XL"] as const;
 const LINE_OA_URL = "https://lin.ee/YmJhMlp";
+const PROMPTPAY_MODE =
+  process.env.NEXT_PUBLIC_OMISE_MODE === "live" ? "live" : "test";
+const IS_PROMPTPAY_LIVE = PROMPTPAY_MODE === "live";
 const SLIP_BUCKET = "preorder-slips";
 const MAX_SLIP_SIZE_BYTES = 5 * 1024 * 1024;
 const ALLOWED_SLIP_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
@@ -888,7 +891,9 @@ function SuccessCard({
       setPromptPayPayment(data as PromptPayPayment);
       setPromptPayMessage(
         (data as PromptPayPayment).qr_code_uri
-          ? "สร้าง QR พร้อมเพย์โหมดทดสอบแล้ว"
+          ? IS_PROMPTPAY_LIVE
+            ? "สร้าง QR พร้อมเพย์แล้ว กรุณาชำระเงินตามยอดที่แสดง"
+            : "สร้าง QR พร้อมเพย์โหมดทดสอบแล้ว"
           : "สร้างรายการ PromptPay แล้ว แต่ยังไม่พบรูป QR จาก Omise กรุณาใช้การแนบสลิปหรือ LINE OA ก่อน",
       );
     } catch {
@@ -1047,7 +1052,9 @@ function SuccessCard({
           <div>
             <p className="font-black text-white">ชำระด้วย PromptPay QR</p>
             <p className="mt-1 text-xs font-bold text-sky-200">
-              โหมดทดสอบ: ยังไม่มีการชำระเงินจริง
+              {IS_PROMPTPAY_LIVE
+                ? "ชำระเงินจริงผ่าน PromptPay QR"
+                : "โหมดทดสอบ: ยังไม่มีการชำระเงินจริง"}
             </p>
             <p className="mt-1 text-xs leading-5 text-zinc-400">
               ระบบสร้าง QR จากยอดออเดอร์ในฐานข้อมูลเท่านั้น ถ้าสร้าง QR ไม่สำเร็จยังสามารถแนบสลิปหรือส่งผ่าน LINE OA ได้
@@ -1069,7 +1076,11 @@ function SuccessCard({
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={promptPayPayment.qr_code_uri}
-                alt="PromptPay QR test mode"
+                alt={
+                  IS_PROMPTPAY_LIVE
+                    ? "PromptPay QR"
+                    : "PromptPay QR test mode"
+                }
                 className="h-44 w-44 rounded-xl border border-white/10 bg-white object-contain p-2"
               />
             ) : (
