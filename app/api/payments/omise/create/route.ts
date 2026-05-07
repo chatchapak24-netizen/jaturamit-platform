@@ -25,6 +25,24 @@ type PreorderPaymentOrder = {
   status: string | null;
 };
 
+function supabaseDebugPayload(error: {
+  code?: string;
+  message?: string;
+  details?: string;
+  hint?: string;
+}) {
+  if (process.env.OMISE_MODE !== "test") {
+    return undefined;
+  }
+
+  return {
+    supabase_code: error.code || null,
+    message: error.message || null,
+    details: error.details || null,
+    hint: error.hint || null,
+  };
+}
+
 export async function POST(request: Request) {
   let payload: CreatePaymentRequest;
 
@@ -62,6 +80,24 @@ export async function POST(request: Request) {
     .maybeSingle();
 
   if (orderError) {
+    console.error("PromptPay order lookup failed", {
+      supabase_code: orderError.code,
+      message: orderError.message,
+      details: orderError.details,
+      hint: orderError.hint,
+    });
+
+    if (process.env.OMISE_MODE === "test") {
+      return jsonResponse(
+        {
+          error: `ไม่สามารถค้นหาออเดอร์เพื่อสร้าง QR ได้ (${orderError.code || "SUPABASE_ERROR"}: ${orderError.message || "unknown error"})`,
+          code: "ORDER_LOOKUP_FAILED",
+          debug: supabaseDebugPayload(orderError),
+        },
+        500,
+      );
+    }
+
     return jsonResponse(
       { error: "ไม่สามารถค้นหาออเดอร์เพื่อสร้าง QR ได้", code: "ORDER_LOOKUP_FAILED" },
       500,
