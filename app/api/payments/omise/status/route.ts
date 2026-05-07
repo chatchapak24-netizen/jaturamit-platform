@@ -39,9 +39,9 @@ export async function GET(request: Request) {
     );
   }
 
-  const { env, error: envError } = getPaymentEnv();
+  const { env, error: envError, status } = getPaymentEnv();
   if (!env) {
-    return jsonResponse({ error: envError }, 500);
+    return jsonResponse({ error: envError }, status || 500);
   }
 
   const supabase = createServiceSupabase(env);

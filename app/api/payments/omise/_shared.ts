@@ -23,8 +23,16 @@ export type OmiseCharge = JsonRecord & {
 
 export type PaymentEnv = {
   omiseSecretKey: string;
+  omiseMode: "test" | "live";
   supabaseUrl: string;
   supabaseServiceRoleKey: string;
+};
+
+type PaymentEnvResult = {
+  env: PaymentEnv | null;
+  error: string | null;
+  code?: string;
+  status?: number;
 };
 
 const OMISE_API_BASE = "https://api.omise.co";
@@ -46,30 +54,74 @@ export function validatePhone(phone: string) {
   return /^0\d{9}$/.test(phone);
 }
 
-export function getPaymentEnv(): { env: PaymentEnv | null; error: string | null } {
+export function getPaymentEnv(): PaymentEnvResult {
   const omiseSecretKey = process.env.OMISE_SECRET_KEY;
   const omiseMode = process.env.OMISE_MODE;
+  const paymentsEnabled = process.env.OMISE_PAYMENTS_ENABLED !== "false";
+  const livePaymentsAllowed = process.env.OMISE_ALLOW_LIVE_PAYMENTS === "true";
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!paymentsEnabled) {
+    return {
+      env: null,
+      error: "PromptPay ยังไม่เปิดใช้งาน กรุณาใช้การแนบสลิปหรือ LINE OA",
+      code: "PAYMENT_DISABLED",
+      status: 503,
+    };
+  }
 
   if (!omiseSecretKey || !supabaseUrl || !supabaseServiceRoleKey) {
     return {
       env: null,
       error:
         "ระบบยังไม่ได้ตั้งค่า ENV สำหรับ PromptPay ให้ครบ กรุณาตรวจ OMISE_SECRET_KEY, OMISE_MODE และ SUPABASE_SERVICE_ROLE_KEY",
+      code: "PAYMENT_ENV_MISSING",
+      status: 500,
     };
   }
 
-  if (omiseMode !== "test" || omiseSecretKey.startsWith("skey_live_")) {
+  if (omiseMode !== "test" && omiseMode !== "live") {
     return {
       env: null,
-      error: "PromptPay ในระบบนี้เปิดเฉพาะ Omise test mode เท่านั้น",
+      error: "PromptPay ตั้งค่า OMISE_MODE ไม่ถูกต้อง",
+      code: "PAYMENT_MODE_INVALID",
+      status: 500,
+    };
+  }
+
+  if (omiseMode === "test" && omiseSecretKey.startsWith("skey_live_")) {
+    return {
+      env: null,
+      error: "PromptPay test mode ห้ามใช้ live secret key",
+      code: "PAYMENT_KEY_MODE_MISMATCH",
+      status: 500,
+    };
+  }
+
+  if (omiseMode === "live" && !livePaymentsAllowed) {
+    return {
+      env: null,
+      error:
+        "PromptPay live mode ยังไม่เปิดใช้งาน กรุณาตั้ง OMISE_ALLOW_LIVE_PAYMENTS=true หลังผ่าน checklist",
+      code: "LIVE_PAYMENTS_LOCKED",
+      status: 503,
+    };
+  }
+
+  if (omiseMode === "live" && !omiseSecretKey.startsWith("skey_live_")) {
+    return {
+      env: null,
+      error: "PromptPay live mode ต้องใช้ live secret key",
+      code: "PAYMENT_KEY_MODE_MISMATCH",
+      status: 500,
     };
   }
 
   return {
     env: {
       omiseSecretKey,
+      omiseMode,
       supabaseUrl,
       supabaseServiceRoleKey,
     },
@@ -202,6 +254,11 @@ export function mappedPaymentStatus(charge: OmiseCharge) {
   return "pending";
 }
 
-export function isVerifiedTestCharge(charge: OmiseCharge) {
-  return charge.livemode === false && charge.currency === "THB";
+export function isVerifiedChargeForMode(
+  charge: OmiseCharge,
+  omiseMode: PaymentEnv["omiseMode"],
+) {
+  return (
+    charge.livemode === (omiseMode === "live") && charge.currency === "THB"
+  );
 }

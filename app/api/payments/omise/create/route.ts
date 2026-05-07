@@ -25,90 +25,6 @@ type PreorderPaymentOrder = {
   status: string | null;
 };
 
-function decodeJwtRole(token: string) {
-  const payload = token.split(".")[1];
-  if (!payload) return null;
-
-  try {
-    const normalizedPayload = payload.replace(/-/g, "+").replace(/_/g, "/");
-    const parsedPayload = JSON.parse(
-      Buffer.from(normalizedPayload, "base64").toString("utf8"),
-    ) as { role?: unknown };
-
-    return typeof parsedPayload.role === "string" ? parsedPayload.role : null;
-  } catch {
-    return null;
-  }
-}
-
-function serviceKeyDebug(value: string) {
-  if (value.startsWith("eyJ")) {
-    return {
-      kind: "legacy_jwt",
-      role: decodeJwtRole(value),
-    };
-  }
-
-  if (value.startsWith("sb_secret_")) {
-    return {
-      kind: "sb_secret",
-      role: null,
-    };
-  }
-
-  if (value.startsWith("sb_publishable_")) {
-    return {
-      kind: "sb_publishable",
-      role: null,
-    };
-  }
-
-  return {
-    kind: "unknown",
-    role: null,
-  };
-}
-
-function safeSupabaseHost(value: string) {
-  try {
-    return new URL(value).host;
-  } catch {
-    return "invalid-url";
-  }
-}
-
-function envDebugPayload(env: {
-  supabaseUrl: string;
-  supabaseServiceRoleKey: string;
-}) {
-  if (process.env.OMISE_MODE !== "test") {
-    return undefined;
-  }
-
-  return {
-    supabase_host: safeSupabaseHost(env.supabaseUrl),
-    service_key: serviceKeyDebug(env.supabaseServiceRoleKey),
-  };
-}
-
-function supabaseDebugPayload(error: {
-  code?: string;
-  message?: string;
-  details?: string;
-  hint?: string;
-}) {
-  if (process.env.OMISE_MODE !== "test") {
-    return undefined;
-  }
-
-  return {
-    supabase_code: error.code || null,
-    message: error.message || null,
-    details: error.details || null,
-    hint: error.hint || null,
-  };
-}
-
 export async function POST(request: Request) {
   let payload: CreatePaymentRequest;
 
@@ -122,7 +38,10 @@ export async function POST(request: Request) {
   const phone = cleanInput(payload.phone);
 
   if (!orderCode || !phone) {
-    return jsonResponse({ error: "กรุณาระบุรหัสออเดอร์และเบอร์โทร" }, 400);
+    return jsonResponse(
+      { error: "กรุณาระบุรหัสออเดอร์และเบอร์โทร" },
+      400,
+    );
   }
 
   if (!validatePhone(phone)) {
@@ -132,9 +51,12 @@ export async function POST(request: Request) {
     );
   }
 
-  const { env, error: envError } = getPaymentEnv();
+  const { env, error: envError, code, status } = getPaymentEnv();
   if (!env) {
-    return jsonResponse({ error: envError, code: "PAYMENT_ENV_MISSING" }, 500);
+    return jsonResponse(
+      { error: envError, code: code || "PAYMENT_ENV_INVALID" },
+      status || 500,
+    );
   }
 
   const supabase = createServiceSupabase(env);
@@ -149,30 +71,22 @@ export async function POST(request: Request) {
     console.error("PromptPay order lookup failed", {
       supabase_code: orderError.code,
       message: orderError.message,
-      details: orderError.details,
-      hint: orderError.hint,
     });
 
-    if (process.env.OMISE_MODE === "test") {
-      return jsonResponse(
-        {
-          error: `ไม่สามารถค้นหาออเดอร์เพื่อสร้าง QR ได้ (${orderError.code || "SUPABASE_ERROR"}: ${orderError.message || "unknown error"})`,
-          code: "ORDER_LOOKUP_FAILED",
-          env_debug: envDebugPayload(env),
-          debug: supabaseDebugPayload(orderError),
-        },
-        500,
-      );
-    }
-
     return jsonResponse(
-      { error: "ไม่สามารถค้นหาออเดอร์เพื่อสร้าง QR ได้", code: "ORDER_LOOKUP_FAILED" },
+      {
+        error: "ไม่สามารถค้นหาออเดอร์เพื่อสร้าง QR ได้",
+        code: "ORDER_LOOKUP_FAILED",
+      },
       500,
     );
   }
 
   if (!order) {
-    return jsonResponse({ error: "ไม่พบออเดอร์", code: "ORDER_NOT_FOUND" }, 404);
+    return jsonResponse(
+      { error: "ไม่พบออเดอร์", code: "ORDER_NOT_FOUND" },
+      404,
+    );
   }
 
   const preorder = order as PreorderPaymentOrder;
@@ -221,10 +135,15 @@ export async function POST(request: Request) {
       });
 
     if (insertError) {
+      console.error("PromptPay payment record insert failed", {
+        supabase_code: insertError.code,
+        message: insertError.message,
+      });
+
       return jsonResponse(
         {
           error:
-            "สร้าง charge แล้ว แต่บันทึกข้อมูลการชำระเงินไม่ได้ กรุณาตรวจว่าได้รัน SQL preorder_payments แล้ว",
+            "สร้าง charge แล้ว แต่บันทึกข้อมูลการชำระเงินไม่ได้ กรุณาใช้การแนบสลิปหรือ LINE OA",
           code: "PAYMENT_RECORD_SAVE_FAILED",
         },
         500,
@@ -247,7 +166,7 @@ export async function POST(request: Request) {
     return jsonResponse(
       {
         error:
-          "Omise ไม่สามารถสร้าง QR พร้อมเพย์ได้ กรุณาตรวจ test secret key และสถานะบัญชี",
+          "Omise ไม่สามารถสร้าง QR พร้อมเพย์ได้ กรุณาใช้การแนบสลิปหรือ LINE OA",
         code: "OMISE_CREATE_FAILED",
       },
       502,
