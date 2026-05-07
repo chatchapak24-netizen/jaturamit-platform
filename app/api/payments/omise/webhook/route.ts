@@ -2,7 +2,7 @@ import {
   cleanInput,
   createServiceSupabase,
   getPaymentEnv,
-  isVerifiedTestCharge,
+  isVerifiedChargeForMode,
   jsonResponse,
   mappedPaymentStatus,
   retrieveCharge,
@@ -52,9 +52,9 @@ export async function POST(request: Request) {
     return jsonResponse({ error: "missing charge id" }, 400);
   }
 
-  const { env, error: envError } = getPaymentEnv();
+  const { env, error: envError, status } = getPaymentEnv();
   if (!env) {
-    return jsonResponse({ error: envError }, 500);
+    return jsonResponse({ error: envError }, status || 500);
   }
 
   const supabase = createServiceSupabase(env);
@@ -81,7 +81,7 @@ export async function POST(request: Request) {
     const verified =
       verifiedCharge.id === chargeId &&
       amountMatches &&
-      isVerifiedTestCharge(verifiedCharge);
+      isVerifiedChargeForMode(verifiedCharge, env.omiseMode);
 
     if (!verified) {
       await supabase
