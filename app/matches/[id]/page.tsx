@@ -562,7 +562,9 @@ function LineupRow({ lineup }: { lineup: Lineup }) {
 
       <div className="text-right text-xs text-zinc-400">
         <p>
-          {lineup.minute_in ?? 0}' - {lineup.minute_out ?? "-"}'
+          {lineup.minute_in ?? 0}
+          {"'"} - {lineup.minute_out ?? "-"}
+          {"'"}
         </p>
         <p>{lineup.minutes_played ?? 0} นาที</p>
       </div>

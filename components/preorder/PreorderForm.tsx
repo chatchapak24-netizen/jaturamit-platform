@@ -376,6 +376,24 @@ export default function PreorderForm({
     );
   }
 
+  if (successData) {
+    return (
+      <SuccessCard
+        key={successData.orderCode || "success"}
+        successData={successData}
+        paymentInfo={paymentInfo}
+        copyMessage={copyMessage}
+        onCopyAccountNumber={copyAccountNumber}
+        onCopyOrderCode={copyOrderCode}
+        onAttachSlip={uploadAndAttachSlip}
+        onOrderMore={() => {
+          setSuccessData(null);
+          setCopyMessage("");
+        }}
+      />
+    );
+  }
+
   return (
     <form
       onSubmit={handleSubmit}
@@ -661,22 +679,6 @@ export default function PreorderForm({
             {errorText}
           </p>
         )}
-
-        {successData ? (
-          <SuccessCard
-            key={successData.orderCode || "success"}
-            successData={successData}
-            paymentInfo={paymentInfo}
-            copyMessage={copyMessage}
-            onCopyAccountNumber={copyAccountNumber}
-            onCopyOrderCode={copyOrderCode}
-            onAttachSlip={uploadAndAttachSlip}
-            onOrderMore={() => {
-              setSuccessData(null);
-              setCopyMessage("");
-            }}
-          />
-        ) : null}
 
         <button
           type="submit"
