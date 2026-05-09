@@ -55,6 +55,7 @@ type VisualConfig = {
   coverImageUrl: string;
   teamImageUrls: Record<string, string>;
   customFieldsEnabled: boolean;
+  promptPayEnabled: boolean;
 };
 
 type PreorderPageData =
@@ -201,19 +202,27 @@ async function getPreorderVisualConfig(
   const { data, error } = await supabase
     .from("site_settings")
     .select("key, value")
-    .in("key", ["preorder_config", "preorder_custom_fields_enabled"]);
+    .in("key", [
+      "preorder_config",
+      "preorder_custom_fields_enabled",
+      "preorder_promptpay_enabled",
+    ]);
 
   if (error) {
     return {
       coverImageUrl: "",
       teamImageUrls: {},
       customFieldsEnabled: true,
+      promptPayEnabled: true,
     };
   }
 
   const preorderConfig = data?.find((item) => item.key === "preorder_config");
   const legacyCustomFields = data?.find(
     (item) => item.key === "preorder_custom_fields_enabled",
+  );
+  const promptPaySetting = data?.find(
+    (item) => item.key === "preorder_promptpay_enabled",
   );
   const config = normalizePreorderConfig(
     preorderConfig?.value,
@@ -224,6 +233,7 @@ async function getPreorderVisualConfig(
     coverImageUrl: config.coverImageUrl,
     teamImageUrls: config.teamImageUrls,
     customFieldsEnabled: config.customFieldsEnabled,
+    promptPayEnabled: promptPaySetting?.value !== "false",
   };
 }
 
@@ -521,6 +531,7 @@ export default async function PreorderPage({
           campaign={campaign}
           products={products}
           initialProductId={selectedProductId}
+          promptPayEnabled={visualConfig.promptPayEnabled}
         />
       </section>
     </main>
