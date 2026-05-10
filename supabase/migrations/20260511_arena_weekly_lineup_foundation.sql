@@ -4,6 +4,22 @@
 
 create extension if not exists pgcrypto;
 
+do $$
+begin
+  if to_regclass('public.seasons') is null then
+    raise exception 'public.seasons is required before arena weekly lineup foundation';
+  end if;
+
+  if to_regclass('public.season_players') is null then
+    raise exception 'public.season_players is required before arena weekly lineup foundation';
+  end if;
+
+  if to_regprocedure('public.set_updated_at()') is null then
+    raise exception 'public.set_updated_at() is required before arena weekly lineup foundation';
+  end if;
+end;
+$$;
+
 create table if not exists public.arena_weeks (
   id uuid primary key default gen_random_uuid(),
   season_id uuid not null references public.seasons(id) on delete restrict,
