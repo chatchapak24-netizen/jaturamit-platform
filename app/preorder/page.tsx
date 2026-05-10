@@ -87,6 +87,7 @@ function createPublicSupabaseClient() {
 
 async function getPreorderPageData(): Promise<PreorderPageData> {
   const supabase = createPublicSupabaseClient();
+  const nowIso = new Date().toISOString();
 
   if (!supabase) {
     return {
@@ -101,6 +102,8 @@ async function getPreorderPageData(): Promise<PreorderPageData> {
       "id, name, description, hero_title, hero_subtitle, terms, payment_bank_name, payment_account_name, payment_account_number, payment_note, sort_order, created_at",
     )
     .eq("is_active", true)
+    .or(`starts_at.is.null,starts_at.lte.${nowIso}`)
+    .or(`ends_at.is.null,ends_at.gte.${nowIso}`)
     .order("sort_order", { ascending: true })
     .order("created_at", { ascending: false })
     .limit(1);
