@@ -8,9 +8,6 @@ import type { PreorderCampaign, PreorderProduct } from "@/components/preorder/ty
 
 const SIZE_OPTIONS = ["S", "M", "L", "XL", "2XL", "3XL", "4XL", "5XL"] as const;
 const LINE_OA_URL = "https://lin.ee/YmJhMlp";
-const PROMPTPAY_MODE =
-  process.env.NEXT_PUBLIC_OMISE_MODE === "live" ? "live" : "test";
-const IS_PROMPTPAY_LIVE = PROMPTPAY_MODE === "live";
 const SLIP_BUCKET = "preorder-slips";
 const MAX_SLIP_SIZE_BYTES = 5 * 1024 * 1024;
 const ALLOWED_SLIP_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
@@ -113,10 +110,12 @@ export default function PreorderForm({
   campaign,
   products,
   initialProductId,
+  promptPayEnabled = true,
 }: {
   campaign: PreorderCampaign;
   products: PreorderProduct[];
   initialProductId?: string;
+  promptPayEnabled?: boolean;
 }) {
   const firstProduct = products[0] || null;
   const initialProduct =
@@ -373,6 +372,25 @@ export default function PreorderForm({
       <div className="rounded-2xl border border-white/10 bg-zinc-900 p-5 text-zinc-300 md:p-7">
         ยังไม่มีสินค้าที่เปิดรับพรีออเดอร์
       </div>
+    );
+  }
+
+  if (successData) {
+    return (
+      <SuccessCard
+        key={successData.orderCode || "success"}
+        successData={successData}
+        paymentInfo={paymentInfo}
+        copyMessage={copyMessage}
+        onCopyAccountNumber={copyAccountNumber}
+        onCopyOrderCode={copyOrderCode}
+        onAttachSlip={uploadAndAttachSlip}
+        promptPayEnabled={promptPayEnabled}
+        onOrderMore={() => {
+          setSuccessData(null);
+          setCopyMessage("");
+        }}
+      />
     );
   }
 
@@ -662,22 +680,6 @@ export default function PreorderForm({
           </p>
         )}
 
-        {successData ? (
-          <SuccessCard
-            key={successData.orderCode || "success"}
-            successData={successData}
-            paymentInfo={paymentInfo}
-            copyMessage={copyMessage}
-            onCopyAccountNumber={copyAccountNumber}
-            onCopyOrderCode={copyOrderCode}
-            onAttachSlip={uploadAndAttachSlip}
-            onOrderMore={() => {
-              setSuccessData(null);
-              setCopyMessage("");
-            }}
-          />
-        ) : null}
-
         <button
           type="submit"
           disabled={submitting || cartItems.length === 0}
@@ -771,6 +773,7 @@ function SuccessCard({
   onCopyAccountNumber,
   onCopyOrderCode,
   onAttachSlip,
+  promptPayEnabled,
   onOrderMore,
 }: {
   successData: SuccessState;
@@ -787,6 +790,7 @@ function SuccessCard({
     orderCode: string | null;
     phone: string;
   }) => Promise<boolean>;
+  promptPayEnabled: boolean;
   onOrderMore: () => void;
 }) {
   const [slipStatus, setSlipStatus] = useState<SlipStatus>(
@@ -891,9 +895,7 @@ function SuccessCard({
       setPromptPayPayment(data as PromptPayPayment);
       setPromptPayMessage(
         (data as PromptPayPayment).qr_code_uri
-          ? IS_PROMPTPAY_LIVE
-            ? "สร้าง QR พร้อมเพย์แล้ว กรุณาชำระเงินตามยอดที่แสดง"
-            : "สร้าง QR พร้อมเพย์โหมดทดสอบแล้ว"
+          ? "สร้าง QR พร้อมเพย์โหมดทดสอบแล้ว"
           : "สร้างรายการ PromptPay แล้ว แต่ยังไม่พบรูป QR จาก Omise กรุณาใช้การแนบสลิปหรือ LINE OA ก่อน",
       );
     } catch {
@@ -1047,14 +1049,13 @@ function SuccessCard({
         </dl>
       </div>
 
-      <div className="mt-4 rounded-xl border border-sky-300/20 bg-sky-300/5 p-4">
+      {promptPayEnabled ? (
+        <div className="mt-4 rounded-xl border border-sky-300/20 bg-sky-300/5 p-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <p className="font-black text-white">ชำระด้วย PromptPay QR</p>
             <p className="mt-1 text-xs font-bold text-sky-200">
-              {IS_PROMPTPAY_LIVE
-                ? "ชำระเงินจริงผ่าน PromptPay QR"
-                : "โหมดทดสอบ: ยังไม่มีการชำระเงินจริง"}
+              โหมดทดสอบ: ยังไม่มีการชำระเงินจริง
             </p>
             <p className="mt-1 text-xs leading-5 text-zinc-400">
               ระบบสร้าง QR จากยอดออเดอร์ในฐานข้อมูลเท่านั้น ถ้าสร้าง QR ไม่สำเร็จยังสามารถแนบสลิปหรือส่งผ่าน LINE OA ได้
@@ -1076,11 +1077,7 @@ function SuccessCard({
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={promptPayPayment.qr_code_uri}
-                alt={
-                  IS_PROMPTPAY_LIVE
-                    ? "PromptPay QR"
-                    : "PromptPay QR test mode"
-                }
+                alt="PromptPay QR test mode"
                 className="h-44 w-44 rounded-xl border border-white/10 bg-white object-contain p-2"
               />
             ) : (
@@ -1125,7 +1122,8 @@ function SuccessCard({
             {promptPayMessage}
           </p>
         ) : null}
-      </div>
+        </div>
+      ) : null}
 
       {slipStatus !== "uploaded" ? (
         <div className="mt-4 rounded-xl border border-emerald-300/20 bg-zinc-950/70 p-4">

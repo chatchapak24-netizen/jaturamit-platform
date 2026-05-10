@@ -86,6 +86,22 @@ type SubstitutionRow = {
   reason: string;
 };
 
+type ExistingLineupRow = {
+  player_id: string | null;
+  is_starter: boolean | null;
+  minute_in: number | null;
+  minute_out: number | null;
+};
+
+type ExistingSubstitutionRow = {
+  team_id: string | null;
+  player_out_id: string | null;
+  player_in_id: string | null;
+  minute: number | null;
+  extra_minute: number | null;
+  reason: string | null;
+};
+
 function createSubstitution(teamId = ""): SubstitutionRow {
   return {
     temp_id: crypto.randomUUID(),
@@ -319,10 +335,10 @@ export default function AdminLineupsPage() {
       return;
     }
 
-    const existing = data || [];
+    const existing = (data || []) as ExistingLineupRow[];
 
     const rows: LineupRow[] = teamRoster.map((item) => {
-      const found = existing.find((row: any) => row.player_id === item.player?.id);
+      const found = existing.find((row) => row.player_id === item.player?.id);
 
       return {
         player_id: item.player?.id || "",
@@ -358,7 +374,7 @@ export default function AdminLineupsPage() {
       return;
     }
 
-    const rows: SubstitutionRow[] = (data || []).map((item: any) => ({
+    const rows: SubstitutionRow[] = ((data || []) as ExistingSubstitutionRow[]).map((item) => ({
       temp_id: crypto.randomUUID(),
       team_id: item.team_id || "",
       player_out_id: item.player_out_id || "",

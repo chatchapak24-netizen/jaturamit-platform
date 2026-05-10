@@ -55,6 +55,7 @@ type VisualConfig = {
   coverImageUrl: string;
   teamImageUrls: Record<string, string>;
   customFieldsEnabled: boolean;
+  promptPayEnabled: boolean;
 };
 
 type PreorderPageData =
@@ -86,6 +87,7 @@ function createPublicSupabaseClient() {
 
 async function getPreorderPageData(): Promise<PreorderPageData> {
   const supabase = createPublicSupabaseClient();
+  const nowIso = new Date().toISOString();
 
   if (!supabase) {
     return {
@@ -100,6 +102,8 @@ async function getPreorderPageData(): Promise<PreorderPageData> {
       "id, name, description, hero_title, hero_subtitle, terms, payment_bank_name, payment_account_name, payment_account_number, payment_note, sort_order, created_at",
     )
     .eq("is_active", true)
+    .or(`starts_at.is.null,starts_at.lte.${nowIso}`)
+    .or(`ends_at.is.null,ends_at.gte.${nowIso}`)
     .order("sort_order", { ascending: true })
     .order("created_at", { ascending: false })
     .limit(1);
@@ -201,19 +205,27 @@ async function getPreorderVisualConfig(
   const { data, error } = await supabase
     .from("site_settings")
     .select("key, value")
-    .in("key", ["preorder_config", "preorder_custom_fields_enabled"]);
+    .in("key", [
+      "preorder_config",
+      "preorder_custom_fields_enabled",
+      "preorder_promptpay_enabled",
+    ]);
 
   if (error) {
     return {
       coverImageUrl: "",
       teamImageUrls: {},
       customFieldsEnabled: true,
+      promptPayEnabled: true,
     };
   }
 
   const preorderConfig = data?.find((item) => item.key === "preorder_config");
   const legacyCustomFields = data?.find(
     (item) => item.key === "preorder_custom_fields_enabled",
+  );
+  const promptPaySetting = data?.find(
+    (item) => item.key === "preorder_promptpay_enabled",
   );
   const config = normalizePreorderConfig(
     preorderConfig?.value,
@@ -224,6 +236,7 @@ async function getPreorderVisualConfig(
     coverImageUrl: config.coverImageUrl,
     teamImageUrls: config.teamImageUrls,
     customFieldsEnabled: config.customFieldsEnabled,
+    promptPayEnabled: promptPaySetting?.value !== "false",
   };
 }
 
@@ -521,6 +534,7 @@ export default async function PreorderPage({
           campaign={campaign}
           products={products}
           initialProductId={selectedProductId}
+          promptPayEnabled={visualConfig.promptPayEnabled}
         />
       </section>
     </main>

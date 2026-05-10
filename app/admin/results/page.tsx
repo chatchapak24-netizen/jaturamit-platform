@@ -99,6 +99,15 @@ type StandingRow = {
   team_id: string;
 };
 
+type StandingMatchRow = {
+  id: string;
+  home_team_id: string;
+  away_team_id: string;
+  home_score: number | null;
+  away_score: number | null;
+  status: string | null;
+};
+
 function normalizeRelation<T>(relation: SupabaseRelation<T>): T | null {
   return Array.isArray(relation) ? relation[0] || null : relation;
 }
@@ -629,7 +638,7 @@ export default function AdminResultsPage() {
       });
     });
 
-    (matchesResult.data || []).forEach((match: any) => {
+    ((matchesResult.data || []) as StandingMatchRow[]).forEach((match) => {
       if (
         match.home_score === null ||
         match.home_score === undefined ||
@@ -984,7 +993,8 @@ export default function AdminResultsPage() {
                   <div>
                     <p className="font-black">
                       {event.minute ?? "-"}
-                      {event.extra_minute ? `+${event.extra_minute}` : ""}' ·{" "}
+                      {event.extra_minute ? `+${event.extra_minute}` : ""}
+                      {"'"} ·{" "}
                       {eventLabel(event.event_type)} ·{" "}
                       {playerName(event.player)}
                     </p>

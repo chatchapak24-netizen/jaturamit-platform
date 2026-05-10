@@ -14,6 +14,12 @@ type SettingRow = {
   value: string | null;
 };
 
+const SETTINGS_KEYS = [
+  "preorder_config",
+  "preorder_custom_fields_enabled",
+  "preorder_promptpay_enabled",
+];
+
 const TEAM_IMAGE_FIELDS = [
   { key: "photha", label: "โพธา" },
   { key: "benjamarachutit", label: "เบญจมราชูทิศ" },
@@ -29,6 +35,7 @@ export default function AdminPreorderPage() {
   const [config, setConfig] = useState<PreorderConfig>(
     DEFAULT_PREORDER_CONFIG,
   );
+  const [promptPayEnabled, setPromptPayEnabled] = useState(true);
   const [message, setMessage] = useState("");
   const [errorText, setErrorText] = useState("");
 
@@ -60,7 +67,7 @@ export default function AdminPreorderPage() {
     const { data, error } = await supabaseBrowser
       .from("site_settings")
       .select("key, value")
-      .in("key", ["preorder_config", "preorder_custom_fields_enabled"]);
+      .in("key", SETTINGS_KEYS);
 
     if (error) {
       setErrorText(error.message);
@@ -72,6 +79,9 @@ export default function AdminPreorderPage() {
     const legacyCustomFields = rows.find(
       (item) => item.key === "preorder_custom_fields_enabled",
     );
+    const promptPaySetting = rows.find(
+      (item) => item.key === "preorder_promptpay_enabled",
+    );
 
     setConfig(
       normalizePreorderConfig(
@@ -79,6 +89,7 @@ export default function AdminPreorderPage() {
         legacyCustomFields?.value !== "false",
       ),
     );
+    setPromptPayEnabled(promptPaySetting?.value !== "false");
   }
 
   useEffect(() => {
@@ -125,6 +136,11 @@ export default function AdminPreorderPage() {
       {
         key: "preorder_custom_fields_enabled",
         value: safeConfig.customFieldsEnabled ? "true" : "false",
+        updated_at: new Date().toISOString(),
+      },
+      {
+        key: "preorder_promptpay_enabled",
+        value: promptPayEnabled ? "true" : "false",
         updated_at: new Date().toISOString(),
       },
     ]);
@@ -268,6 +284,13 @@ export default function AdminPreorderPage() {
                 })
               }
             />
+
+            <ToggleRow
+              title="เปิดชำระด้วย PromptPay QR"
+              description="ถ้าปิด ลูกค้าจะไม่เห็นกล่องสร้าง QR พร้อมเพย์ แต่ยังแนบสลิปในเว็บและติดต่อ LINE OA ได้ตามเดิม"
+              checked={promptPayEnabled}
+              onChange={setPromptPayEnabled}
+            />
           </div>
         </div>
 
@@ -292,6 +315,9 @@ export default function AdminPreorderPage() {
               {config.customFieldsEnabled
                 ? "เปิดให้กรอกชื่อบนเสื้อและเบอร์เสื้อ"
                 : "ปิดช่องชื่อบนเสื้อและเบอร์เสื้อ"}
+            </p>
+            <p className="mt-2 text-sm text-zinc-300">
+              PromptPay QR: {promptPayEnabled ? "เปิดใช้งาน" : "ปิดใช้งาน"}
             </p>
           </div>
         </div>

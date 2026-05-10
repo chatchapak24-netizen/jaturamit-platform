@@ -10,6 +10,7 @@ export const metadata: Metadata = {
 const navItems = [
   { href: "/", label: "หน้าแรก" },
   { href: "/tournaments", label: "ทัวร์นาเมนต์" },
+  { href: "/arena", label: "Arena" },
   { href: "/fixtures", label: "โปรแกรม" },
   { href: "/standings", label: "ตารางคะแนน" },
   { href: "/teams", label: "ทีม" },
