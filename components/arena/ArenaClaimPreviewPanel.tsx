@@ -23,9 +23,18 @@ type ClaimPreviewRow = {
   position_label: string | null;
 };
 
+type ClaimCardResponse = {
+  success: boolean;
+  message: string;
+  printed_card_id: string | null;
+  user_card_id: string | null;
+};
+
 type ArenaClaimPreviewPanelProps = {
   initialCode?: string;
 };
+
+const CLAIM_FINGERPRINT_KEY = "arena-claim-fingerprint";
 
 function formatRarity(rarity: string | null) {
   if (!rarity) {
@@ -38,14 +47,35 @@ function formatRarity(rarity: string | null) {
     .join(" ");
 }
 
+function getOrCreateClaimFingerprint() {
+  const existingFingerprint = window.localStorage.getItem(CLAIM_FINGERPRINT_KEY);
+
+  if (existingFingerprint) {
+    return existingFingerprint;
+  }
+
+  const nextFingerprint =
+    typeof window.crypto.randomUUID === "function"
+      ? window.crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+  window.localStorage.setItem(CLAIM_FINGERPRINT_KEY, nextFingerprint);
+  return nextFingerprint;
+}
+
 export default function ArenaClaimPreviewPanel({
   initialCode = "",
 }: ArenaClaimPreviewPanelProps) {
   const [claimCode, setClaimCode] = useState(initialCode);
   const [preview, setPreview] = useState<ClaimPreviewRow | null>(null);
   const [message, setMessage] = useState("");
+  const [claimMessage, setClaimMessage] = useState("");
+  const [claimResult, setClaimResult] = useState<ClaimCardResponse | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [claiming, setClaiming] = useState(false);
   const loadingRef = useRef(false);
+  const claimingRef = useRef(false);
   const autoPreviewedCodeRef = useRef("");
 
   const normalizedCode = useMemo(() => claimCode.trim(), [claimCode]);
@@ -75,6 +105,9 @@ export default function ArenaClaimPreviewPanel({
     loadingRef.current = true;
     setLoading(true);
     setMessage("");
+    setClaimMessage("");
+    setClaimResult(null);
+    setIsAuthenticated(false);
     setPreview(null);
 
     const { data, error } = await supabaseBrowser.rpc("preview_claim_card", {
@@ -101,9 +134,63 @@ export default function ArenaClaimPreviewPanel({
 
     setPreview(response);
     setMessage(response.message || "");
+
+    if (response.success) {
+      const { data: userData } = await supabaseBrowser.auth.getUser();
+      const hasUser = Boolean(userData.user);
+
+      setIsAuthenticated(hasUser);
+
+      if (!hasUser) {
+        setClaimMessage("Sign in before claiming this Arena card.");
+      }
+    }
+
     loadingRef.current = false;
     setLoading(false);
   }, []);
+
+  const claimPreviewedCard = useCallback(async () => {
+    const code = claimCode.trim();
+
+    if (!code || !preview?.success || !isAuthenticated || claimingRef.current) {
+      return;
+    }
+
+    claimingRef.current = true;
+    setClaiming(true);
+    setClaimMessage("");
+    setClaimResult(null);
+
+    const { data, error } = await supabaseBrowser.rpc("claim_card", {
+      p_claim_code: code,
+      p_request_fingerprint: getOrCreateClaimFingerprint(),
+      p_user_agent: window.navigator.userAgent,
+    });
+
+    if (error) {
+      setClaimMessage("Card claim is not available right now. Please try again.");
+      claimingRef.current = false;
+      setClaiming(false);
+      return;
+    }
+
+    const response = Array.isArray(data)
+      ? (data[0] as ClaimCardResponse | undefined)
+      : undefined;
+
+    if (!response) {
+      setClaimMessage("Card claim result was not returned.");
+      claimingRef.current = false;
+      setClaiming(false);
+      return;
+    }
+
+    setClaimResult(response);
+    setClaimMessage(response.message || "");
+    claimingRef.current = false;
+    setClaiming(false);
+  }, [claimCode, isAuthenticated, preview]);
 
   function submitPreview(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -191,6 +278,52 @@ export default function ArenaClaimPreviewPanel({
                 </div>
               ))}
             </div>
+
+            {isAuthenticated ? (
+              <button
+                type="button"
+                onClick={() => void claimPreviewedCard()}
+                disabled={claiming || Boolean(claimResult?.success)}
+                className="mt-5 w-full rounded-xl bg-red-600 px-5 py-4 text-base font-black text-white transition hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {claimResult?.success
+                  ? "Card claimed"
+                  : claiming
+                    ? "Claiming card..."
+                    : "Claim card"}
+              </button>
+            ) : null}
+
+            {claimMessage ? (
+              <p className="mt-4 rounded-xl border border-white/10 bg-zinc-950 p-4 text-sm text-zinc-200">
+                {claimMessage}
+              </p>
+            ) : null}
+
+            {claimResult?.success ? (
+              <div className="mt-4 grid gap-3">
+                {claimResult.printed_card_id ? (
+                  <div className="flex items-center justify-between gap-4 rounded-xl border border-white/10 bg-zinc-950 p-4">
+                    <span className="text-xs font-black uppercase tracking-[0.2em] text-zinc-500">
+                      Printed Card
+                    </span>
+                    <span className="break-all text-right font-mono text-xs text-zinc-100">
+                      {claimResult.printed_card_id}
+                    </span>
+                  </div>
+                ) : null}
+                {claimResult.user_card_id ? (
+                  <div className="flex items-center justify-between gap-4 rounded-xl border border-white/10 bg-zinc-950 p-4">
+                    <span className="text-xs font-black uppercase tracking-[0.2em] text-zinc-500">
+                      User Card
+                    </span>
+                    <span className="break-all text-right font-mono text-xs text-zinc-100">
+                      {claimResult.user_card_id}
+                    </span>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
           </div>
         ) : (
           <div className="mt-5 rounded-xl border border-white/10 bg-zinc-950 p-5 text-sm leading-6 text-zinc-400">
