@@ -98,7 +98,7 @@ export default function ArenaVotePanel({
     });
 
     if (error) {
-      setMessage("Vote could not be submitted. Please try again.");
+      setMessage("Vote could not be submitted. Please try again. (ส่งโหวตไม่สำเร็จ กรุณาลองใหม่)");
       setSubmitting(false);
       return;
     }
@@ -110,13 +110,13 @@ export default function ArenaVotePanel({
     if (response?.success) {
       window.localStorage.setItem(votedKey(contest.id), selectedEntryId);
       setVotedEntryId(selectedEntryId);
-      setMessage("Your arena vote has been counted.");
+      setMessage("Your arena vote has been counted. (นับโหวตอารีนาของคุณแล้ว)");
       await refreshRanking();
       setSubmitting(false);
       return;
     }
 
-    setMessage(response?.message || "This arena vote was not counted.");
+    setMessage(response?.message || "This arena vote was not counted. (โหวตอารีนานี้ไม่ถูกนับ)");
     await refreshRanking();
     setSubmitting(false);
   }
@@ -125,12 +125,12 @@ export default function ArenaVotePanel({
     <div className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
       <section className="rounded-2xl border border-white/10 bg-zinc-900 p-5 md:p-7">
         <p className="text-xs font-bold uppercase tracking-[0.24em] text-red-300">
-          Arena Vote
+          Arena Vote (โหวตอารีนา)
         </p>
-        <h2 className="mt-2 text-2xl font-black">Choose your side</h2>
+        <h2 className="mt-2 text-2xl font-black">Choose your side (เลือกฝั่งของคุณ)</h2>
         <p className="mt-2 text-sm leading-6 text-zinc-400">
           One vote is counted per device for this arena. The ranking updates
-          after your vote is accepted.
+          after your vote is accepted. (หนึ่งอุปกรณ์โหวตได้หนึ่งครั้งสำหรับอารีนานี้ และอันดับจะอัปเดตหลังระบบรับโหวต)
         </p>
 
         <div className="mt-6 grid gap-3">
@@ -164,7 +164,7 @@ export default function ArenaVotePanel({
                 </div>
                 {isVoted ? (
                   <p className="mt-3 text-xs font-bold uppercase tracking-[0.18em] text-emerald-200">
-                    Your vote
+                    Your vote (โหวตของคุณ)
                   </p>
                 ) : null}
               </button>
@@ -185,10 +185,10 @@ export default function ArenaVotePanel({
           className="mt-5 w-full rounded-xl bg-red-600 px-5 py-4 text-base font-black text-white transition hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {votedEntryId
-            ? "Vote submitted"
+            ? "Vote submitted (ส่งโหวตแล้ว)"
             : submitting
-              ? "Submitting vote..."
-              : "Submit arena vote"}
+              ? "Submitting vote... (กำลังส่งโหวต)"
+              : "Submit arena vote (ส่งโหวตอารีนา)"}
         </button>
       </section>
 
@@ -196,12 +196,12 @@ export default function ArenaVotePanel({
         <div className="flex flex-col gap-2 border-b border-white/10 pb-5 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.24em] text-red-300">
-              Live Ranking
+              Live Ranking (อันดับสด)
             </p>
-            <h2 className="mt-2 text-2xl font-black">Arena leaderboard</h2>
+            <h2 className="mt-2 text-2xl font-black">Arena leaderboard (ตารางอันดับอารีนา)</h2>
           </div>
           <p className="text-sm font-bold text-zinc-400">
-            {totalVotes.toLocaleString("th-TH")} votes
+            {totalVotes.toLocaleString("th-TH")} votes (โหวต)
           </p>
         </div>
 
@@ -218,7 +218,7 @@ export default function ArenaVotePanel({
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="text-xs font-black uppercase tracking-[0.22em] text-red-300">
-                      Rank {entry.rank_position}
+                      Rank (อันดับ) {entry.rank_position}
                     </p>
                     <p className="mt-1 font-black">{entry.display_name}</p>
                   </div>
@@ -232,7 +232,9 @@ export default function ArenaVotePanel({
                     style={{ width: `${percent}%` }}
                   />
                 </div>
-                <p className="mt-2 text-xs text-zinc-500">{percent}% share</p>
+                <p className="mt-2 text-xs text-zinc-500">
+                  {percent}% share (สัดส่วน)
+                </p>
               </div>
             );
           })}
@@ -242,7 +244,7 @@ export default function ArenaVotePanel({
           href="/arena/ranking"
           className="mt-5 inline-flex rounded-xl border border-white/10 px-4 py-3 text-sm font-black text-zinc-200 hover:bg-white/10"
         >
-          Open full ranking
+          Open full ranking (เปิดตารางอันดับทั้งหมด)
         </Link>
       </section>
     </div>

@@ -85,13 +85,13 @@ export default function ArenaClaimPreviewPanel({
     }
 
     return [
-      ["Edition", preview.edition_name],
-      ["Rarity", formatRarity(preview.rarity)],
-      ["Serial", preview.serial_label],
-      ["Player", preview.player_label],
-      ["School", preview.school_label],
-      ["Season", preview.season_label],
-      ["Position", preview.position_label],
+      ["Edition (รุ่น)", preview.edition_name],
+      ["Rarity (ระดับความหายาก)", formatRarity(preview.rarity)],
+      ["Serial (หมายเลข)", preview.serial_label],
+      ["Player (ผู้เล่น)", preview.player_label],
+      ["School (โรงเรียน)", preview.school_label],
+      ["Season (ซีซั่น)", preview.season_label],
+      ["Position (ตำแหน่ง)", preview.position_label],
     ].filter(([, value]) => Boolean(value));
   }, [preview]);
 
@@ -115,7 +115,7 @@ export default function ArenaClaimPreviewPanel({
     });
 
     if (error) {
-      setMessage("Card preview is not available right now. Please try again.");
+      setMessage("Card preview is not available right now. Please try again. (ไม่สามารถดูตัวอย่างการ์ดได้ในขณะนี้ กรุณาลองใหม่)");
       loadingRef.current = false;
       setLoading(false);
       return;
@@ -126,7 +126,7 @@ export default function ArenaClaimPreviewPanel({
       : undefined;
 
     if (!response) {
-      setMessage("Card preview was not found.");
+      setMessage("Card preview was not found. (ไม่พบตัวอย่างการ์ด)");
       loadingRef.current = false;
       setLoading(false);
       return;
@@ -142,7 +142,7 @@ export default function ArenaClaimPreviewPanel({
       setIsAuthenticated(hasUser);
 
       if (!hasUser) {
-        setClaimMessage("Sign in before claiming this Arena card.");
+        setClaimMessage("Sign in before claiming this Arena card. (เข้าสู่ระบบก่อนรับการ์ดอารีนาใบนี้)");
       }
     }
 
@@ -169,7 +169,7 @@ export default function ArenaClaimPreviewPanel({
     });
 
     if (error) {
-      setClaimMessage("Card claim is not available right now. Please try again.");
+      setClaimMessage("Card claim is not available right now. Please try again. (ยังรับการ์ดไม่ได้ในขณะนี้ กรุณาลองใหม่)");
       claimingRef.current = false;
       setClaiming(false);
       return;
@@ -180,7 +180,7 @@ export default function ArenaClaimPreviewPanel({
       : undefined;
 
     if (!response) {
-      setClaimMessage("Card claim result was not returned.");
+      setClaimMessage("Card claim result was not returned. (ระบบไม่ได้ส่งผลการรับการ์ดกลับมา)");
       claimingRef.current = false;
       setClaiming(false);
       return;
@@ -215,19 +215,19 @@ export default function ArenaClaimPreviewPanel({
         className="rounded-2xl border border-white/10 bg-zinc-900 p-5 md:p-7"
       >
         <p className="text-xs font-bold uppercase tracking-[0.24em] text-red-300">
-          Claim Code
+          Claim Code (รหัสรับการ์ด)
         </p>
-        <h2 className="mt-2 text-2xl font-black">Check card preview</h2>
+        <h2 className="mt-2 text-2xl font-black">Check card preview (ตรวจดูตัวอย่างการ์ด)</h2>
         <p className="mt-2 text-sm leading-6 text-zinc-400">
           This preview only checks safe public card details. It does not claim
-          the card.
+          the card. (ตัวอย่างนี้ตรวจเฉพาะข้อมูลการ์ดสาธารณะที่ปลอดภัย และยังไม่ใช่การรับการ์ด)
         </p>
 
         <label
           htmlFor="arena-claim-code"
           className="mt-6 block text-sm font-bold text-zinc-200"
         >
-          Code
+          Code (รหัส)
         </label>
         <input
           id="arena-claim-code"
@@ -243,7 +243,7 @@ export default function ArenaClaimPreviewPanel({
           disabled={loading || !normalizedCode}
           className="mt-5 w-full rounded-xl bg-red-600 px-5 py-4 text-base font-black text-white transition hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {loading ? "Checking preview..." : "Preview card"}
+          {loading ? "Checking preview... (กำลังตรวจตัวอย่าง)" : "Preview card (ดูตัวอย่างการ์ด)"}
         </button>
 
         {message ? (
@@ -255,13 +255,13 @@ export default function ArenaClaimPreviewPanel({
 
       <div className="rounded-2xl border border-white/10 bg-zinc-900 p-5 md:p-7">
         <p className="text-xs font-bold uppercase tracking-[0.24em] text-red-300">
-          Public Preview
+          Public Preview (ตัวอย่างสาธารณะ)
         </p>
 
         {preview?.success ? (
           <div className="mt-5">
             <h2 className="text-3xl font-black">
-              {preview.card_name || "Arena card"}
+              {preview.card_name || "Arena card (การ์ดอารีนา)"}
             </h2>
             <div className="mt-5 grid gap-3">
               {safeFields.map(([label, value]) => (
@@ -287,10 +287,10 @@ export default function ArenaClaimPreviewPanel({
                 className="mt-5 w-full rounded-xl bg-red-600 px-5 py-4 text-base font-black text-white transition hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {claimResult?.success
-                  ? "Card claimed"
+                  ? "Card claimed (รับการ์ดแล้ว)"
                   : claiming
-                    ? "Claiming card..."
-                    : "Claim card"}
+                    ? "Claiming card... (กำลังรับการ์ด)"
+                    : "Claim card (รับการ์ด)"}
               </button>
             ) : null}
 
@@ -305,7 +305,7 @@ export default function ArenaClaimPreviewPanel({
                 {claimResult.printed_card_id ? (
                   <div className="flex items-center justify-between gap-4 rounded-xl border border-white/10 bg-zinc-950 p-4">
                     <span className="text-xs font-black uppercase tracking-[0.2em] text-zinc-500">
-                      Printed Card
+                      Printed Card (การ์ดที่พิมพ์)
                     </span>
                     <span className="break-all text-right font-mono text-xs text-zinc-100">
                       {claimResult.printed_card_id}
@@ -315,7 +315,7 @@ export default function ArenaClaimPreviewPanel({
                 {claimResult.user_card_id ? (
                   <div className="flex items-center justify-between gap-4 rounded-xl border border-white/10 bg-zinc-950 p-4">
                     <span className="text-xs font-black uppercase tracking-[0.2em] text-zinc-500">
-                      User Card
+                      User Card (การ์ดผู้ใช้)
                     </span>
                     <span className="break-all text-right font-mono text-xs text-zinc-100">
                       {claimResult.user_card_id}
@@ -328,7 +328,7 @@ export default function ArenaClaimPreviewPanel({
         ) : (
           <div className="mt-5 rounded-xl border border-white/10 bg-zinc-950 p-5 text-sm leading-6 text-zinc-400">
             Enter a claim code to preview the card details that are safe to show
-            before login.
+            before login. (กรอกรหัสรับการ์ดเพื่อดูรายละเอียดการ์ดที่ปลอดภัยก่อนเข้าสู่ระบบ)
           </div>
         )}
       </div>

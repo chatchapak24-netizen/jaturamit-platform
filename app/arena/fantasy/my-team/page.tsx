@@ -52,9 +52,9 @@ function normalizeRelation<T>(relation: SupabaseRelation<T>): T | null {
 
 function playerName(player: SeasonPlayerRow["player"]) {
   const value = normalizeRelation(player);
-  if (!value) return "Unnamed Player";
+  if (!value) return "Unnamed Player (ผู้เล่นไม่ระบุชื่อ)";
   const fullName = [value.first_name, value.last_name].filter(Boolean).join(" ");
-  return value.nickname || fullName || "Unnamed Player";
+  return value.nickname || fullName || "Unnamed Player (ผู้เล่นไม่ระบุชื่อ)";
 }
 
 function effectivePosition(player: PlayerOption) {
@@ -143,7 +143,7 @@ export default function ArenaFantasyMyTeamPage() {
 
     if (profileError || !profile) {
       setState("error");
-      setErrorText(profileError?.message || "Arena profile is not available.");
+      setErrorText(profileError?.message || "Arena profile is not available. (ไม่พบโปรไฟล์อารีนา)");
       return;
     }
 
@@ -226,7 +226,7 @@ export default function ArenaFantasyMyTeamPage() {
           shirt_number: row.shirt_number,
           position: row.position,
           display_name: playerName(row.player),
-          team_name: team?.short_name || team?.name || "Team",
+          team_name: team?.short_name || team?.name || "Team (ทีม)",
           star_rating: setting?.star_rating || 1,
           fantasy_status: setting?.fantasy_status || "active",
           fantasy_position: setting?.fantasy_position_override || null,
@@ -285,12 +285,12 @@ export default function ArenaFantasyMyTeamPage() {
     setErrorText("");
 
     if (!week || !profileId) {
-      setErrorText("Fantasy week is not available.");
+      setErrorText("Fantasy week is not available. (ไม่พบสัปดาห์แฟนตาซี)");
       return;
     }
 
     if (nextStatus === "locked" && !validation.isValid) {
-      setErrorText("Lock Team (ล็อกทีม) is enabled only when lineup is valid.");
+      setErrorText("Lock Team (ล็อกทีม) is enabled only when lineup is valid. (จะล็อกทีมได้เมื่อรายชื่อถูกต้องเท่านั้น)");
       return;
     }
 
@@ -361,15 +361,15 @@ export default function ArenaFantasyMyTeamPage() {
     setLineupStatus(nextStatus);
     setMessage(
       nextStatus === "locked"
-        ? "Lock Team (ล็อกทีม) complete."
-        : "Draft lineup saved."
+        ? "Lock Team (ล็อกทีม) complete. (ล็อกทีมเรียบร้อยแล้ว)"
+        : "Draft lineup saved. (บันทึกแบบร่างเรียบร้อยแล้ว)"
     );
   }
 
   if (state === "loading") {
     return (
       <main className="mx-auto max-w-6xl px-6 py-10 text-zinc-400">
-        Loading fantasy lineup...
+        Loading fantasy lineup... (กำลังโหลดทีมแฟนตาซี)
       </main>
     );
   }
@@ -379,11 +379,11 @@ export default function ArenaFantasyMyTeamPage() {
       <main className="mx-auto max-w-6xl px-6 py-10">
         <section className="rounded-2xl border border-white/10 bg-zinc-900 p-6">
           <p className="text-xs font-black uppercase tracking-[0.24em] text-red-300">
-            Login Required
+            Login Required (ต้องเข้าสู่ระบบ)
           </p>
           <h1 className="mt-3 text-3xl font-black">My Team (ทีมของฉัน)</h1>
           <p className="mt-3 text-zinc-400">
-            Sign in before creating an Arena Fantasy lineup.
+            Sign in before creating an Arena Fantasy lineup. (เข้าสู่ระบบก่อนจัดทีมอารีนาแฟนตาซี)
           </p>
         </section>
       </main>
@@ -395,18 +395,18 @@ export default function ArenaFantasyMyTeamPage() {
       <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.3em] text-red-300">
-            My Team
+            My Team (ทีมของฉัน)
           </p>
           <h1 className="mt-2 text-4xl font-black">Pick Lineup (เลือกทีม)</h1>
           <p className="mt-3 text-zinc-400">
-            11 players, GK 1, DF 4, MF 4, FW 2, star cap 38, school limit 5.
+            11 players, GK 1, DF 4, MF 4, FW 2, star cap 38, school limit 5. (ผู้เล่น 11 คน, GK 1, DF 4, MF 4, FW 2, เพดานดาว 38, จำกัดผู้เล่นต่อโรงเรียน 5 คน)
           </p>
         </div>
         <Link
           href="/arena/fantasy"
           className="rounded-xl border border-white/10 px-4 py-3 text-sm font-black text-zinc-200 hover:bg-white/10"
         >
-          Back to Fantasy
+          Back to Fantasy (กลับไปหน้าแฟนตาซี)
         </Link>
       </div>
 
@@ -424,7 +424,7 @@ export default function ArenaFantasyMyTeamPage() {
 
       {!week ? (
         <section className="rounded-2xl border border-white/10 bg-zinc-900 p-6 text-zinc-300">
-          No Arena Fantasy week is open yet.
+          No Arena Fantasy week is open yet. (ยังไม่มีสัปดาห์อารีนาแฟนตาซีที่เปิดอยู่)
         </section>
       ) : (
         <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
@@ -432,12 +432,15 @@ export default function ArenaFantasyMyTeamPage() {
             <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h2 className="text-2xl font-black">{week.name}</h2>
-                <p className="text-sm text-zinc-500">Status: {week.status}</p>
+                <p className="text-sm text-zinc-500">Status (สถานะ): {week.status}</p>
               </div>
               <span className="w-fit rounded-full border border-red-300/30 px-3 py-1 text-xs font-black uppercase text-red-200">
                 {lineupStatus}
               </span>
             </div>
+            <p className="mb-3 text-xs font-black uppercase tracking-[0.24em] text-red-300">
+              Player Cards (การ์ดผู้เล่น)
+            </p>
 
             <div className="grid gap-3 md:grid-cols-2">
               {players.map((player) => {
@@ -465,7 +468,7 @@ export default function ArenaFantasyMyTeamPage() {
                       </span>
                     </div>
                     <p className="mt-3 text-sm text-red-200">
-                      {"★".repeat(player.star_rating)}
+                      Star Rating (ระดับดาว): {"★".repeat(player.star_rating)}
                     </p>
                   </button>
                 );
@@ -474,14 +477,14 @@ export default function ArenaFantasyMyTeamPage() {
           </section>
 
           <aside className="rounded-2xl border border-white/10 bg-zinc-900 p-5">
-            <h2 className="text-2xl font-black">Lineup Rules</h2>
+            <h2 className="text-2xl font-black">Lineup Rules (กติกาการจัดทีม)</h2>
             <div className="mt-5 grid gap-3 text-sm">
               <div className="flex justify-between">
-                <span>Players</span>
+                <span>Players (ผู้เล่น)</span>
                 <strong>{selectedPlayers.length}/11</strong>
               </div>
               <div className="flex justify-between">
-                <span>GK / DF / MF / FW</span>
+                <span>GK / DF / MF / FW (ตำแหน่ง)</span>
                 <strong>
                   {validation.counts.GK}/{validation.counts.DF}/
                   {validation.counts.MF}/{validation.counts.FW}
@@ -492,8 +495,8 @@ export default function ArenaFantasyMyTeamPage() {
                 <strong>{validation.stars}/38</strong>
               </div>
               <div className="flex justify-between">
-                <span>School Limit</span>
-                <strong>{validation.schoolLimitOk ? "OK" : "Over"}</strong>
+                <span>School Limit (จำกัดผู้เล่นต่อโรงเรียน)</span>
+                <strong>{validation.schoolLimitOk ? "OK (ผ่าน)" : "Over (เกิน)"}</strong>
               </div>
             </div>
 
@@ -504,7 +507,7 @@ export default function ArenaFantasyMyTeamPage() {
                 disabled={lineupStatus === "locked"}
                 className="rounded-xl border border-white/10 px-4 py-3 font-black text-zinc-100 hover:bg-white/10 disabled:opacity-50"
               >
-                Save Draft
+                Save Draft (บันทึกแบบร่าง)
               </button>
               <button
                 type="button"

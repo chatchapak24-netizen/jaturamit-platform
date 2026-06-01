@@ -68,13 +68,13 @@ function CardDetail({
 function CollectionCard({ card }: { card: ArenaCollectionCard }) {
   const details = useMemo(
     (): Array<[string, string | null]> => [
-      ["Edition", card.edition_name],
-      ["Serial", card.serial_label],
-      ["Player", card.player_label],
-      ["School", card.school_label],
-      ["Season", card.season_label],
-      ["Position", card.position_label],
-      ["Acquired", formatDate(card.acquired_at)],
+      ["Edition (รุ่น)", card.edition_name],
+      ["Serial (หมายเลข)", card.serial_label],
+      ["Player (ผู้เล่น)", card.player_label],
+      ["School (โรงเรียน)", card.school_label],
+      ["Season (ซีซั่น)", card.season_label],
+      ["Position (ตำแหน่ง)", card.position_label],
+      ["Acquired (ได้รับเมื่อ)", formatDate(card.acquired_at)],
     ],
     [card],
   );
@@ -84,10 +84,10 @@ function CollectionCard({ card }: { card: ArenaCollectionCard }) {
       <div className="flex min-h-28 flex-col justify-between rounded-xl border border-red-300/20 bg-gradient-to-br from-red-950/70 via-zinc-950 to-zinc-900 p-5">
         <div>
           <p className="text-xs font-black uppercase tracking-[0.24em] text-red-300">
-            {formatLabel(card.rarity) || "Arena Card"}
+            {formatLabel(card.rarity) || "Arena Card (การ์ดอารีนา)"}
           </p>
           <h2 className="mt-3 text-2xl font-black">
-            {card.card_name || "Arena card"}
+            {card.card_name || "Arena card (การ์ดอารีนา)"}
           </h2>
         </div>
         {card.ownership_status ? (
@@ -105,7 +105,7 @@ function CollectionCard({ card }: { card: ArenaCollectionCard }) {
 
       <div className="mt-4 rounded-xl border border-white/10 bg-zinc-950 p-3">
         <p className="text-xs font-black uppercase tracking-[0.2em] text-zinc-500">
-          Printed Card
+          Printed Card (การ์ดที่พิมพ์)
         </p>
         <p className="mt-2 break-all font-mono text-xs text-zinc-300">
           {card.printed_card_id}
@@ -129,7 +129,7 @@ export default function ArenaCollectionPanel() {
 
     if (userError) {
       setState("error");
-      setMessage("Arena collection authentication is not available right now.");
+      setMessage("Arena collection authentication is not available right now. (ระบบยืนยันตัวตนของคอลเลกชันอารีนาไม่พร้อมใช้งานในขณะนี้)");
       return;
     }
 
@@ -146,7 +146,7 @@ export default function ArenaCollectionPanel() {
     if (error) {
       setCards([]);
       setState("error");
-      setMessage("Arena collection is not available right now.");
+      setMessage("Arena collection is not available right now. (คอลเลกชันอารีนาไม่พร้อมใช้งานในขณะนี้)");
       return;
     }
 
@@ -165,7 +165,7 @@ export default function ArenaCollectionPanel() {
   if (state === "loading") {
     return (
       <section className="rounded-2xl border border-white/10 bg-zinc-900 p-6 text-zinc-300">
-        Loading your Arena collection...
+        Loading your Arena collection... (กำลังโหลดคอลเลกชันอารีนาของคุณ)
       </section>
     );
   }
@@ -174,12 +174,12 @@ export default function ArenaCollectionPanel() {
     return (
       <section className="rounded-2xl border border-white/10 bg-zinc-900 p-6">
         <p className="text-xs font-black uppercase tracking-[0.24em] text-red-300">
-          Login Required
+          Login Required (ต้องเข้าสู่ระบบ)
         </p>
-        <h2 className="mt-3 text-2xl font-black">Sign in to view Collection</h2>
+        <h2 className="mt-3 text-2xl font-black">Sign in to view Collection (เข้าสู่ระบบเพื่อดูคอลเลกชัน)</h2>
         <p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-400">
           Arena cards are connected to your authenticated Arena profile. Sign in
-          before viewing the cards currently attached to your collection.
+          before viewing the cards currently attached to your collection. (การ์ดอารีนาเชื่อมกับโปรไฟล์อารีนาที่เข้าสู่ระบบแล้ว กรุณาเข้าสู่ระบบก่อนดูการ์ดในคอลเลกชันของคุณ)
         </p>
       </section>
     );
@@ -194,7 +194,7 @@ export default function ArenaCollectionPanel() {
           onClick={() => void loadCollection()}
           className="mt-4 rounded-xl border border-amber-200/40 px-4 py-3 text-sm font-black hover:bg-amber-200/10"
         >
-          Try again
+          Try again (ลองอีกครั้ง)
         </button>
       </section>
     );
@@ -204,12 +204,12 @@ export default function ArenaCollectionPanel() {
     return (
       <section className="rounded-2xl border border-white/10 bg-zinc-900 p-6">
         <p className="text-xs font-black uppercase tracking-[0.24em] text-red-300">
-          Empty Collection
+          Empty Collection (คอลเลกชันว่าง)
         </p>
-        <h2 className="mt-3 text-2xl font-black">No Arena cards yet</h2>
+        <h2 className="mt-3 text-2xl font-black">No Arena cards yet (ยังไม่มีการ์ดอารีนา)</h2>
         <p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-400">
           Cards you successfully claim will appear here once they are connected
-          to your Arena profile.
+          to your Arena profile. (การ์ดที่รับสำเร็จจะแสดงที่นี่เมื่อเชื่อมกับโปรไฟล์อารีนาของคุณแล้ว)
         </p>
       </section>
     );
@@ -220,10 +220,10 @@ export default function ArenaCollectionPanel() {
       <div className="mb-5 flex items-end justify-between gap-4">
         <div>
           <p className="text-xs font-black uppercase tracking-[0.24em] text-red-300">
-            Current Cards
+            Current Cards (การ์ดปัจจุบัน)
           </p>
           <h2 className="mt-2 text-2xl font-black">
-            {cards.length} {cards.length === 1 ? "card" : "cards"}
+            {cards.length} {cards.length === 1 ? "card (การ์ด)" : "cards (การ์ด)"}
           </h2>
         </div>
       </div>

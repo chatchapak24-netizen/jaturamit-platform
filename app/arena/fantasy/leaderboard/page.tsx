@@ -58,20 +58,20 @@ export default async function ArenaFantasyLeaderboardPage() {
       <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.3em] text-red-300">
-            Fantasy Leaderboard
+            Fantasy Leaderboard (ตารางอันดับแฟนตาซี)
           </p>
           <h1 className="mt-2 text-4xl font-black">
             Leaderboard (ตารางอันดับ)
           </h1>
           <p className="mt-3 text-zinc-400">
-            Scores are read from existing Arena weekly scores.
+            Scores are read from existing Arena weekly scores and match stats. (คะแนนอ้างอิงจากคะแนนรายสัปดาห์และ Match Stats (สถิติหลังเกม) ของอารีนา)
           </p>
         </div>
         <Link
           href="/arena/fantasy"
           className="inline-flex rounded-xl border border-white/10 px-4 py-3 text-sm font-black text-zinc-200 hover:bg-white/10"
         >
-          Back to Fantasy
+          Back to Fantasy (กลับไปหน้าแฟนตาซี)
         </Link>
       </div>
 
@@ -81,18 +81,18 @@ export default async function ArenaFantasyLeaderboardPage() {
         </section>
       ) : scores.length === 0 ? (
         <section className="rounded-2xl border border-white/10 bg-zinc-900 p-6 text-zinc-300">
-          No scored fantasy lineups are available yet.
+          No scored fantasy lineups are available yet. (ยังไม่มีทีมแฟนตาซีที่มีคะแนน)
         </section>
       ) : (
         <section className="overflow-hidden rounded-2xl border border-white/10 bg-zinc-900">
           <table className="w-full min-w-[720px] text-sm">
             <thead className="bg-white/10 text-zinc-300">
               <tr>
-                <th className="px-4 py-3 text-left">Rank</th>
-                <th className="px-4 py-3 text-left">Profile</th>
-                <th className="px-4 py-3 text-left">Week</th>
-                <th className="px-4 py-3 text-right">Points</th>
-                <th className="px-4 py-3 text-right">Status</th>
+                <th className="px-4 py-3 text-left">Rank (อันดับ)</th>
+                <th className="px-4 py-3 text-left">Profile (โปรไฟล์)</th>
+                <th className="px-4 py-3 text-left">Week (สัปดาห์)</th>
+                <th className="px-4 py-3 text-right">Points (คะแนน)</th>
+                <th className="px-4 py-3 text-right">Status (สถานะ)</th>
               </tr>
             </thead>
             <tbody>
@@ -104,10 +104,10 @@ export default async function ArenaFantasyLeaderboardPage() {
                   <td className="px-4 py-4 font-bold">
                     {score.profile?.display_name ||
                       score.profile?.handle ||
-                      "Arena Player"}
+                      "Arena Player (ผู้เล่นอารีนา)"}
                   </td>
                   <td className="px-4 py-4 text-zinc-300">
-                    {score.week?.name || "Fantasy week"}
+                    {score.week?.name || "Fantasy week (สัปดาห์แฟนตาซี)"}
                   </td>
                   <td className="px-4 py-4 text-right text-2xl font-black">
                     {score.total_points.toLocaleString("th-TH")}

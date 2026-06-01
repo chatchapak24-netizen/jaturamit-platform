@@ -13,20 +13,20 @@ export default async function ArenaRankingPage() {
       <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.3em] text-red-300">
-            Arena Ranking
+            Arena Ranking (อันดับอารีนา)
           </p>
           <h1 className="mt-2 text-4xl font-black">
-            {contest?.title || "Jaturamit Arena"}
+            {contest?.title || "Jaturamit Arena (จตุรมิตร อารีนา)"}
           </h1>
           <p className="mt-3 text-zinc-400">
-            {totalVotes.toLocaleString("th-TH")} total votes counted
+            {totalVotes.toLocaleString("th-TH")} total votes counted (นับโหวตทั้งหมด)
           </p>
         </div>
         <Link
           href="/arena"
           className="inline-flex rounded-xl border border-white/10 px-4 py-3 text-sm font-black text-zinc-200 hover:bg-white/10"
         >
-          Back to arena
+          Back to arena (กลับสู่อารีนา)
         </Link>
       </div>
 
@@ -38,11 +38,11 @@ export default async function ArenaRankingPage() {
 
       {!contest ? (
         <section className="rounded-2xl border border-white/10 bg-zinc-900 p-6 text-zinc-300">
-          Arena ranking is not open yet.
+          Arena ranking is not open yet. (ตารางอันดับอารีนายังไม่เปิด)
         </section>
       ) : ranking.length === 0 ? (
         <section className="rounded-2xl border border-white/10 bg-zinc-900 p-6 text-zinc-300">
-          No arena ranking entries are available.
+          No arena ranking entries are available. (ยังไม่มีรายการอันดับอารีนา)
         </section>
       ) : (
         <section className="grid gap-4">
@@ -77,7 +77,9 @@ export default async function ArenaRankingPage() {
                     <p className="text-3xl font-black">
                       {entry.vote_count.toLocaleString("th-TH")}
                     </p>
-                    <p className="text-sm text-zinc-400">{percent}% share</p>
+                    <p className="text-sm text-zinc-400">
+                      {percent}% share (สัดส่วน)
+                    </p>
                   </div>
                 </div>
                 <div className="mt-4 h-3 overflow-hidden rounded-full bg-white/10">
