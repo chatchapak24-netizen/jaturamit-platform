@@ -2,6 +2,8 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import HomeNewsSlider from "@/components/HomeNewsSlider";
 
+export const dynamic = "force-dynamic";
+
 type SupabaseRelation<T> = T | T[] | null;
 
 type Season = {

@@ -1,5 +1,7 @@
 import { supabase } from "@/lib/supabase";
 
+export const dynamic = "force-dynamic";
+
 export default async function DebugPage() {
   const teams = await supabase.from("teams").select("*");
   const matches = await supabase.from("matches").select("*");

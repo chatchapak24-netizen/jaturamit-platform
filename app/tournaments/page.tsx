@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 
+export const dynamic = "force-dynamic";
+
 type SupabaseRelation<T> = T | T[] | null;
 
 type Season = {
