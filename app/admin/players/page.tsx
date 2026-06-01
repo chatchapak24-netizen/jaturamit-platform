@@ -60,11 +60,21 @@ type RosterPlayer = {
   status: string | null;
   team: RosterTeam | null;
   player: Player | null;
+  fantasy_settings: ArenaPlayerSetting | null;
 };
 
 type RosterPlayerQueryRow = Omit<RosterPlayer, "team" | "player"> & {
   team: SupabaseRelation<RosterTeam>;
   player: SupabaseRelation<Player>;
+  fantasy_settings: SupabaseRelation<ArenaPlayerSetting>;
+};
+
+type ArenaPlayerSetting = {
+  id: string;
+  season_player_id: string;
+  star_rating: number;
+  fantasy_status: string;
+  fantasy_position_override: string | null;
 };
 
 function normalizeRelation<T>(relation: SupabaseRelation<T>): T | null {
@@ -88,6 +98,16 @@ function playerFullName(player: RosterPlayer["player"]) {
   return [player.first_name, player.last_name].filter(Boolean).join(" ") || "-";
 }
 
+function defaultFantasySettings(): ArenaPlayerSetting | null {
+  return {
+    id: "",
+    season_player_id: "",
+    star_rating: 1,
+    fantasy_status: "active",
+    fantasy_position_override: null,
+  };
+}
+
 export default function AdminPlayersPage() {
   const router = useRouter();
 
@@ -107,6 +127,9 @@ export default function AdminPlayersPage() {
   const [lastName, setLastName] = useState("");
   const [position, setPosition] = useState("");
   const [photoUrl, setPhotoUrl] = useState("");
+  const [starRating, setStarRating] = useState("1");
+  const [fantasyStatus, setFantasyStatus] = useState("active");
+  const [fantasyPositionOverride, setFantasyPositionOverride] = useState("");
 
   const [editingRosterId, setEditingRosterId] = useState("");
   const [editingPlayerId, setEditingPlayerId] = useState("");
@@ -232,6 +255,13 @@ export default function AdminPlayersPage() {
           last_name,
           nickname,
           photo_url
+        ),
+        fantasy_settings:arena_player_settings(
+          id,
+          season_player_id,
+          star_rating,
+          fantasy_status,
+          fantasy_position_override
         )
       `)
       .eq("season_id", seasonId)
@@ -249,6 +279,8 @@ export default function AdminPlayersPage() {
       ...item,
       team: normalizeRelation(item.team),
       player: normalizeRelation(item.player),
+      fantasy_settings:
+        normalizeRelation(item.fantasy_settings) || defaultFantasySettings(),
     }));
 
     setRoster(loadedRoster);
@@ -287,6 +319,9 @@ export default function AdminPlayersPage() {
     setLastName("");
     setPosition("");
     setPhotoUrl("");
+    setStarRating("1");
+    setFantasyStatus("active");
+    setFantasyPositionOverride("");
   }
 
   function cancelEdit() {
@@ -313,6 +348,11 @@ export default function AdminPlayersPage() {
     setLastName(item.player?.last_name || "");
     setPosition(item.position || "");
     setPhotoUrl(item.player?.photo_url || "");
+    setStarRating(String(item.fantasy_settings?.star_rating || 1));
+    setFantasyStatus(item.fantasy_settings?.fantasy_status || "active");
+    setFantasyPositionOverride(
+      item.fantasy_settings?.fantasy_position_override || ""
+    );
 
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -344,7 +384,34 @@ export default function AdminPlayersPage() {
       return false;
     }
 
+    const parsedStarRating = Number(starRating);
+
+    if (
+      Number.isNaN(parsedStarRating) ||
+      parsedStarRating < 1 ||
+      parsedStarRating > 5
+    ) {
+      setErrorText("Star Rating (ระดับดาว) ต้องอยู่ระหว่าง 1-5");
+      return false;
+    }
+
     return true;
+  }
+
+  async function saveFantasySettings(seasonPlayerId: string) {
+    const { error } = await supabaseBrowser
+      .from("arena_player_settings")
+      .upsert(
+        {
+          season_player_id: seasonPlayerId,
+          star_rating: Number(starRating),
+          fantasy_status: fantasyStatus,
+          fantasy_position_override: fantasyPositionOverride || null,
+        },
+        { onConflict: "season_player_id" }
+      );
+
+    return error;
   }
 
   async function addPlayer(e: React.FormEvent) {
@@ -377,7 +444,7 @@ export default function AdminPlayersPage() {
       return;
     }
 
-    const { error: rosterError } = await supabaseBrowser
+    const { data: rosterData, error: rosterError } = await supabaseBrowser
       .from("season_players")
       .insert({
         season_id: selectedSeasonId,
@@ -386,10 +453,20 @@ export default function AdminPlayersPage() {
         shirt_number: parsedShirtNumber,
         position: position || null,
         status: "active",
-      });
+      })
+      .select("id")
+      .single();
 
-    if (rosterError) {
-      setErrorText(rosterError.message);
+    if (rosterError || !rosterData) {
+      setErrorText(rosterError?.message || "เพิ่มรายชื่อนักเตะไม่สำเร็จ");
+      setSaving(false);
+      return;
+    }
+
+    const fantasyError = await saveFantasySettings(rosterData.id);
+
+    if (fantasyError) {
+      setErrorText(fantasyError.message);
       setSaving(false);
       return;
     }
@@ -447,6 +524,14 @@ export default function AdminPlayersPage() {
 
     if (rosterError) {
       setErrorText(rosterError.message);
+      setSaving(false);
+      return;
+    }
+
+    const fantasyError = await saveFantasySettings(editingRosterId);
+
+    if (fantasyError) {
+      setErrorText(fantasyError.message);
       setSaving(false);
       return;
     }
@@ -651,6 +736,56 @@ export default function AdminPlayersPage() {
             />
           </div>
 
+          <div>
+            <label className="mb-2 block text-sm text-zinc-400">
+              Star Rating (ระดับดาว)
+            </label>
+            <select
+              value={starRating}
+              onChange={(e) => setStarRating(e.target.value)}
+              className="w-full rounded-2xl border border-white/10 bg-zinc-950 px-4 py-3 text-white outline-none focus:border-red-400"
+            >
+              <option value="1">1 - Development Player</option>
+              <option value="2">2 - Rotation Player</option>
+              <option value="3">3 - Regular Starter</option>
+              <option value="4">4 - Key Starter</option>
+              <option value="5">5 - Elite Player</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="mb-2 block text-sm text-zinc-400">
+              Fantasy Status (สถานะแฟนตาซี)
+            </label>
+            <select
+              value={fantasyStatus}
+              onChange={(e) => setFantasyStatus(e.target.value)}
+              className="w-full rounded-2xl border border-white/10 bg-zinc-950 px-4 py-3 text-white outline-none focus:border-red-400"
+            >
+              <option value="active">Active (ใช้งาน)</option>
+              <option value="inactive">Inactive (ปิดใช้งาน)</option>
+              <option value="injured">Injured (บาดเจ็บ)</option>
+              <option value="suspended">Suspended (ติดโทษแบน)</option>
+            </select>
+          </div>
+
+          <div className="md:col-span-2">
+            <label className="mb-2 block text-sm text-zinc-400">
+              Fantasy Position Override (ตำแหน่งแฟนตาซี)
+            </label>
+            <select
+              value={fantasyPositionOverride}
+              onChange={(e) => setFantasyPositionOverride(e.target.value)}
+              className="w-full rounded-2xl border border-white/10 bg-zinc-950 px-4 py-3 text-white outline-none focus:border-red-400"
+            >
+              <option value="">Use roster position (ใช้ตำแหน่งเดิม)</option>
+              <option value="GK">GK - Goalkeeper</option>
+              <option value="DF">DF - Defender</option>
+              <option value="MF">MF - Midfielder</option>
+              <option value="FW">FW - Forward</option>
+            </select>
+          </div>
+
           <div className="md:col-span-2">
             <label className="mb-2 block text-sm text-zinc-400">
               URL รูปนักกีฬา
@@ -710,7 +845,7 @@ export default function AdminPlayersPage() {
         <h2 className="text-2xl font-black">รายชื่อนักเตะในซีซั่นนี้</h2>
 
         <div className="mt-6 overflow-x-auto rounded-2xl border border-white/10">
-          <table className="w-full min-w-[900px] text-sm">
+          <table className="w-full min-w-[1100px] text-sm">
             <thead className="bg-white/10 text-zinc-300">
               <tr>
                 <th className="px-4 py-3 text-left">รูป</th>

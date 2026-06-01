@@ -185,6 +185,16 @@ export default function AdminDashboardPage() {
 </Link>
 
         <Link
+          href="/admin/fantasy"
+          className="rounded-3xl border border-white/10 bg-zinc-900 p-6 hover:border-red-400/50"
+        >
+          <h2 className="text-2xl font-black">Jaturamit Arena Fantasy</h2>
+          <p className="mt-3 text-sm text-zinc-400">
+            Control fantasy weeks, lineup status, and leaderboard scoring.
+          </p>
+        </Link>
+
+        <Link
           href="/admin/news"
           className="rounded-3xl border border-white/10 bg-zinc-900 p-6 hover:border-red-400/50"
         >
