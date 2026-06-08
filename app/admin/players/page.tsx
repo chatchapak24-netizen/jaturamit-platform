@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 
@@ -146,7 +146,7 @@ export default function AdminPlayersPage() {
       .filter(Boolean) as Team[];
   }, [seasonTeams, selectedSeasonId]);
 
-  async function checkAdmin() {
+  const checkAdmin = useCallback(async () => {
     const { data: userData } = await supabaseBrowser.auth.getUser();
 
     if (!userData.user) {
@@ -168,7 +168,7 @@ export default function AdminPlayersPage() {
     }
 
     return true;
-  }
+  }, [router]);
 
   async function loadBaseData() {
     const [seasonsResult, seasonTeamsResult] = await Promise.all([
@@ -300,7 +300,7 @@ export default function AdminPlayersPage() {
     }
 
     init();
-  }, []);
+  }, [checkAdmin]);
 
   async function handleSeasonChange(seasonId: string) {
     setSelectedSeasonId(seasonId);

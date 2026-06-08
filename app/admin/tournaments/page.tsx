@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 
@@ -121,7 +121,7 @@ export default function AdminTournamentsPage() {
   const isEditingCompetition = Boolean(editingCompetitionId);
   const isEditingSeason = Boolean(editingSeasonId);
 
-  async function checkAdmin() {
+  const checkAdmin = useCallback(async () => {
     const { data: userData } = await supabaseBrowser.auth.getUser();
 
     if (!userData.user) {
@@ -143,9 +143,9 @@ export default function AdminTournamentsPage() {
     }
 
     return true;
-  }
+  }, [router]);
 
-  async function loadData() {
+  const loadData = useCallback(async () => {
     const [competitionsResult, seasonsResult, teamsResult, seasonTeamsResult] =
       await Promise.all([
         supabaseBrowser
@@ -228,7 +228,7 @@ export default function AdminTournamentsPage() {
     if (!selectedSeasonId && loadedSeasons[0]?.id) {
       setSelectedSeasonId(loadedSeasons[0].id);
     }
-  }
+  }, [seasonCompetitionId, selectedSeasonId]);
 
   useEffect(() => {
     async function init() {
@@ -242,7 +242,7 @@ export default function AdminTournamentsPage() {
     }
 
     init();
-  }, []);
+  }, [checkAdmin, loadData]);
 
   function resetCompetitionForm() {
     setCompetitionName("");

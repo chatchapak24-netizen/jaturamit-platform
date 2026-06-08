@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 
@@ -43,7 +43,7 @@ export default function AdminSponsorsPage() {
 
   const isEditing = Boolean(editingSponsorId);
 
-  async function checkAdmin() {
+  const checkAdmin = useCallback(async () => {
     const { data: userData } = await supabaseBrowser.auth.getUser();
 
     if (!userData.user) {
@@ -65,7 +65,7 @@ export default function AdminSponsorsPage() {
     }
 
     return true;
-  }
+  }, [router]);
 
   async function loadSponsors() {
     const { data, error } = await supabaseBrowser
@@ -102,7 +102,7 @@ export default function AdminSponsorsPage() {
     }
 
     init();
-  }, []);
+  }, [checkAdmin]);
 
   function resetForm() {
     setEditingSponsorId("");

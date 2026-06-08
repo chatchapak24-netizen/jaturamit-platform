@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 
@@ -48,7 +48,7 @@ export default function AdminSettingsPage() {
   const [message, setMessage] = useState("");
   const [errorText, setErrorText] = useState("");
 
-  async function checkAdmin() {
+  const checkAdmin = useCallback(async () => {
     const { data: userData } = await supabaseBrowser.auth.getUser();
 
     if (!userData.user) {
@@ -70,7 +70,7 @@ export default function AdminSettingsPage() {
     }
 
     return true;
-  }
+  }, [router]);
 
   async function loadData() {
     const [seasonsResult, settingResult] = await Promise.all([
@@ -133,7 +133,7 @@ export default function AdminSettingsPage() {
     }
 
     init();
-  }, []);
+  }, [checkAdmin]);
 
   async function saveSettings() {
     setMessage("");

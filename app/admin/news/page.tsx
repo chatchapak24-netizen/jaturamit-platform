@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 
@@ -62,7 +62,7 @@ export default function AdminNewsPage() {
 
   const isEditing = Boolean(editingNewsId);
 
-  async function checkAdmin() {
+  const checkAdmin = useCallback(async () => {
     const { data: userData } = await supabaseBrowser.auth.getUser();
 
     if (!userData.user) {
@@ -84,7 +84,7 @@ export default function AdminNewsPage() {
     }
 
     return true;
-  }
+  }, [router]);
 
   async function loadNews() {
     const { data, error } = await supabaseBrowser
@@ -122,7 +122,7 @@ export default function AdminNewsPage() {
     }
 
     init();
-  }, []);
+  }, [checkAdmin]);
 
   function resetForm() {
     setEditingNewsId("");

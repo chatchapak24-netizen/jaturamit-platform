@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 
@@ -50,7 +50,7 @@ export default function AdminTeamsPage() {
 
   const isEditing = Boolean(editingTeamId);
 
-  async function checkAdmin() {
+  const checkAdmin = useCallback(async () => {
     const { data: userData } = await supabaseBrowser.auth.getUser();
 
     if (!userData.user) {
@@ -72,7 +72,7 @@ export default function AdminTeamsPage() {
     }
 
     return true;
-  }
+  }, [router]);
 
   async function loadTeams() {
     const { data, error } = await supabaseBrowser
@@ -111,7 +111,7 @@ export default function AdminTeamsPage() {
     }
 
     init();
-  }, []);
+  }, [checkAdmin]);
 
   function resetForm() {
     setEditingTeamId("");
