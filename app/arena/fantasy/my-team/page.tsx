@@ -2,6 +2,7 @@
 
 import type { CSSProperties } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import PlayerCard from "@/components/arena/PlayerCard";
 import ArenaProgressJourney from "@/components/arena-v2/ArenaProgressJourney";
@@ -263,6 +264,7 @@ function buildDevPreviewPlayers(): PlayerOption[] {
 }
 
 export default function ArenaFantasyMyTeamPage() {
+  const router = useRouter();
   const [state, setState] = useState<LoadState>("loading");
   const [message, setMessage] = useState("");
   const [errorText, setErrorText] = useState("");
@@ -349,6 +351,13 @@ export default function ArenaFantasyMyTeamPage() {
     });
   }, [activeSlot, players, positionFilter, schoolFilter]);
 
+  const redirectToArenaLogin = useCallback(() => {
+    setState("unauthenticated");
+    router.replace(
+      `/arena/login?next=${encodeURIComponent("/arena/fantasy/my-team")}`,
+    );
+  }, [router]);
+
   const loadFantasy = useCallback(async () => {
     setState("loading");
     setErrorText("");
@@ -373,7 +382,7 @@ export default function ArenaFantasyMyTeamPage() {
 
     if (userError) {
       if (userError.message.toLowerCase().includes("session")) {
-        setState("unauthenticated");
+        redirectToArenaLogin();
         return;
       }
 
@@ -383,7 +392,7 @@ export default function ArenaFantasyMyTeamPage() {
     }
 
     if (!userData.user) {
-      setState("unauthenticated");
+      redirectToArenaLogin();
       return;
     }
 
@@ -529,7 +538,7 @@ export default function ArenaFantasyMyTeamPage() {
 
     setSelections(nextSelections);
     setState("ready");
-  }, []);
+  }, [redirectToArenaLogin]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {

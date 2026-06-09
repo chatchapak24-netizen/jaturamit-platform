@@ -1,3 +1,4 @@
+import ArenaAuthRequired from "@/components/arena/ArenaAuthRequired";
 import ArenaClaimPreviewPanel from "@/components/arena/ArenaClaimPreviewPanel";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +18,8 @@ export default async function ArenaClaimPage({
     : params.code || "";
 
   return (
-    <main className="mx-auto max-w-5xl px-6 py-10">
+    <ArenaAuthRequired nextPath="/arena/claim">
+      <main className="mx-auto max-w-5xl px-6 py-10">
       <section className="mb-8 rounded-3xl border border-white/10 bg-gradient-to-br from-red-950/60 via-zinc-900 to-zinc-950 p-6 md:p-8">
         <p className="text-sm font-semibold uppercase tracking-[0.3em] text-red-300">
           Arena Claim (รับการ์ดอารีนา)
@@ -31,7 +33,8 @@ export default async function ArenaClaimPage({
         </p>
       </section>
 
-      <ArenaClaimPreviewPanel initialCode={initialCode} />
-    </main>
+        <ArenaClaimPreviewPanel initialCode={initialCode} />
+      </main>
+    </ArenaAuthRequired>
   );
 }
