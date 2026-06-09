@@ -4,6 +4,8 @@ import type { CSSProperties } from "react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import PlayerCard from "@/components/arena/PlayerCard";
+import ArenaShell from "@/components/arena-v2/ArenaShell";
+import FantasyPitchV2 from "@/components/arena-v2/FantasyPitchV2";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import {
   ARENA_SCHOOLS,
@@ -57,6 +59,15 @@ type SeasonPlayerRow = {
     fantasy_status: string | null;
     fantasy_position_override: string | null;
   }>;
+};
+
+type ArenaLineupRow = {
+  id: string;
+  status: string | null;
+  arena_lineup_players?: Array<{
+    season_player_id: string;
+    slot_number: number | null;
+  }> | null;
 };
 
 type PitchSlot = {
@@ -199,6 +210,16 @@ function readSelectionIds(selections: Record<string, string | null>) {
   return Object.values(selections).filter(Boolean) as string[];
 }
 
+function readSelectedLineupPlayers(selections: Record<string, string | null>) {
+  return PITCH_SLOTS.map((slot, index) => ({
+    season_player_id: selections[slot.id],
+    slot_number: index + 1,
+  })).filter(
+    (player): player is { season_player_id: string; slot_number: number } =>
+      Boolean(player.season_player_id),
+  );
+}
+
 function countByPosition(players: PlayerOption[]) {
   return players.reduce<Record<PositionGroup, number>>(
     (acc, player) => {
@@ -245,9 +266,11 @@ export default function ArenaFantasyMyTeamPage() {
   const [message, setMessage] = useState("");
   const [errorText, setErrorText] = useState("");
   const [week, setWeek] = useState<ArenaWeek | null>(null);
+  const [profileId, setProfileId] = useState("");
   const [lineupStatus, setLineupStatus] = useState("draft");
   const [players, setPlayers] = useState<PlayerOption[]>([]);
   const [isPreviewMode, setIsPreviewMode] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [selections, setSelections] = useState<Record<string, string | null>>(
     () => emptySelections(),
   );
@@ -330,9 +353,12 @@ export default function ArenaFantasyMyTeamPage() {
     setErrorText("");
     setMessage("");
     setIsPreviewMode(false);
+    setProfileId("");
+    setIsSaving(false);
 
     if (isDevFantasyPreview()) {
       setWeek(DEV_PREVIEW_WEEK);
+      setProfileId("");
       setLineupStatus("draft");
       setPlayers(buildDevPreviewPlayers());
       setSelections(emptySelections());
@@ -378,6 +404,8 @@ export default function ArenaFantasyMyTeamPage() {
       return;
     }
 
+    setProfileId(profile.id);
+
     const { data: weekData, error: weekError } = await supabaseBrowser
       .from("arena_weeks")
       .select("id, season_id, name, status, lineup_locks_at")
@@ -396,6 +424,7 @@ export default function ArenaFantasyMyTeamPage() {
       setWeek(null);
       setPlayers([]);
       setSelections(emptySelections());
+      setLineupStatus("draft");
       setState("ready");
       return;
     }
@@ -478,17 +507,15 @@ export default function ArenaFantasyMyTeamPage() {
 
     const nextSelections = emptySelections();
     if (lineupResult.data) {
-      setLineupStatus(lineupResult.data.status || "draft");
-      const lineupPlayers = (
-        lineupResult.data.arena_lineup_players || []
-      ).sort(
-        (a: { slot_number: number | null }, b: { slot_number: number | null }) =>
-          (a.slot_number || 0) - (b.slot_number || 0),
+      const lineupData = lineupResult.data as ArenaLineupRow;
+      setLineupStatus(lineupData.status || "draft");
+      const lineupPlayers = (lineupData.arena_lineup_players || []).sort(
+        (a, b) => (a.slot_number || 0) - (b.slot_number || 0),
       );
 
       lineupPlayers.forEach(
         (
-          player: { season_player_id: string; slot_number: number | null },
+          player,
           index: number,
         ) => {
           const slot = PITCH_SLOTS[(player.slot_number || index + 1) - 1];
@@ -582,7 +609,7 @@ export default function ArenaFantasyMyTeamPage() {
     setMessage("");
   }
 
-  function saveTeam() {
+  async function saveTeam() {
     setErrorText("");
     setMessage("");
 
@@ -598,9 +625,102 @@ export default function ArenaFantasyMyTeamPage() {
       return;
     }
 
-    setMessage(
-      "Team validated successfully for this sprint. No database write was made. (ตรวจทีมสำเร็จสำหรับสปรินต์นี้ ยังไม่บันทึกลงฐานข้อมูล)",
-    );
+    if (isPreviewMode) {
+      setMessage(
+        "Team validated successfully for this sprint. No database write was made. (ตรวจทีมสำเร็จสำหรับสปรินต์นี้ ยังไม่บันทึกลงฐานข้อมูล)",
+      );
+      return;
+    }
+
+    if (!profileId) {
+      setErrorText(
+        "Arena profile is not available. Please refresh and try again. (ไม่พบโปรไฟล์อารีนา กรุณารีเฟรชแล้วลองใหม่)",
+      );
+      return;
+    }
+
+    if (week.status !== "open") {
+      setErrorText(
+        "This fantasy week is not open for saving. (สัปดาห์แฟนตาซีนี้ยังไม่เปิดให้บันทึก)",
+      );
+      return;
+    }
+
+    const lineupPlayers = readSelectedLineupPlayers(selections);
+    if (lineupPlayers.length !== PLAYER_LIMIT) {
+      setErrorText(
+        "Team is not valid yet. Fill all 11 slots before saving. (กรุณาเลือกผู้เล่นให้ครบ 11 ช่องก่อนบันทึก)",
+      );
+      return;
+    }
+
+    setIsSaving(true);
+
+    const { data: lineup, error: lineupError } = await supabaseBrowser
+      .from("arena_weekly_lineups")
+      .upsert(
+        {
+          week_id: week.id,
+          profile_id: profileId,
+          status: "draft",
+          submitted_at: null,
+        },
+        { onConflict: "week_id,profile_id" },
+      )
+      .select("id")
+      .single();
+
+    if (lineupError || !lineup) {
+      setIsSaving(false);
+      setErrorText(lineupError?.message || "Could not save lineup draft.");
+      return;
+    }
+
+    const { error: deleteError } = await supabaseBrowser
+      .from("arena_lineup_players")
+      .delete()
+      .eq("lineup_id", lineup.id);
+
+    if (deleteError) {
+      setIsSaving(false);
+      setErrorText(deleteError.message);
+      return;
+    }
+
+    const { error: insertError } = await supabaseBrowser
+      .from("arena_lineup_players")
+      .insert(
+        lineupPlayers.map((player) => ({
+          lineup_id: lineup.id,
+          season_player_id: player.season_player_id,
+          slot_number: player.slot_number,
+        })),
+      );
+
+    if (insertError) {
+      setIsSaving(false);
+      setErrorText(insertError.message);
+      return;
+    }
+
+    const { error: submitError } = await supabaseBrowser
+      .from("arena_weekly_lineups")
+      .update({
+        status: "submitted",
+        submitted_at: new Date().toISOString(),
+      })
+      .eq("id", lineup.id)
+      .eq("profile_id", profileId);
+
+    if (submitError) {
+      setIsSaving(false);
+      setErrorText(submitError.message);
+      return;
+    }
+
+    setLineupStatus("submitted");
+    setIsSaving(false);
+    setMessage("Team saved successfully. (บันทึกทีมสำเร็จ)");
   }
 
   if (state === "loading") {
@@ -632,9 +752,10 @@ export default function ArenaFantasyMyTeamPage() {
   }
 
   return (
-    <main className="min-h-screen overflow-x-hidden bg-[#05070d] text-white">
-      <section className="relative px-5 pb-8 pt-8 md:px-8 lg:px-12">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_8%,rgba(34,197,94,0.22),transparent_28%),radial-gradient(circle_at_78%_6%,rgba(239,68,68,0.24),transparent_25%),linear-gradient(135deg,#05070d_0%,#07120d_46%,#130711_100%)]" />
+    <ArenaShell active="team" title="My Team Squad Builder">
+      <section className="relative overflow-hidden px-5 pb-8 pt-8 md:px-8 lg:px-12">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_8%,rgba(34,197,94,0.28),transparent_28%),radial-gradient(circle_at_78%_6%,rgba(239,68,68,0.24),transparent_25%),radial-gradient(circle_at_55%_72%,rgba(250,204,21,0.12),transparent_30%),linear-gradient(135deg,#05070d_0%,#07120d_46%,#130711_100%)]" />
+        <div className="absolute inset-0 opacity-25 [background:linear-gradient(90deg,rgba(255,255,255,0.08)_1px,transparent_1px),linear-gradient(0deg,rgba(255,255,255,0.05)_1px,transparent_1px)] [background-size:42px_42px]" />
         <div className="relative mx-auto max-w-7xl">
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>
@@ -662,13 +783,13 @@ export default function ArenaFantasyMyTeamPage() {
       <section className="mx-auto grid max-w-7xl gap-6 px-5 pb-16 md:px-8 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-12">
         <div className="space-y-5">
           {errorText ? (
-            <div className="border border-red-500/40 bg-red-950/50 p-4 text-sm font-bold text-red-100">
+            <div className="border border-red-500/40 bg-red-950/50 p-4 text-sm font-bold text-red-100 shadow-[0_18px_50px_rgba(127,29,29,0.25)]">
               {errorText}
             </div>
           ) : null}
 
           {message ? (
-            <div className="border border-emerald-400/40 bg-emerald-950/40 p-4 text-sm font-bold text-emerald-100">
+            <div className="border border-emerald-400/40 bg-emerald-950/40 p-4 text-sm font-bold text-emerald-100 shadow-[0_18px_50px_rgba(6,78,59,0.25)]">
               {message}
             </div>
           ) : null}
@@ -691,7 +812,9 @@ export default function ArenaFantasyMyTeamPage() {
 
         <aside className="space-y-5">
           <RulesPanel validation={validation} />
-          <section className="border border-white/10 bg-zinc-950 p-5">
+          <section className="relative overflow-hidden border border-emerald-300/20 bg-[#06110d] p-5 shadow-[0_30px_90px_rgba(0,0,0,0.42)]">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_82%_0%,rgba(34,197,94,0.18),transparent_34%)]" />
+            <div className="relative">
             <p className="text-xs font-black uppercase tracking-[0.22em] text-zinc-500">
               Week (สัปดาห์)
             </p>
@@ -711,16 +834,18 @@ export default function ArenaFantasyMyTeamPage() {
             ) : null}
             <button
               type="button"
-              onClick={saveTeam}
-              disabled={!week || lineupStatus === "locked"}
-              className="mt-5 w-full bg-emerald-300 px-5 py-4 text-sm font-black uppercase tracking-[0.16em] text-zinc-950 hover:bg-white disabled:cursor-not-allowed disabled:opacity-45"
+              onClick={() => void saveTeam()}
+              disabled={!week || lineupStatus === "locked" || isSaving}
+              className="mt-5 w-full bg-emerald-300 px-5 py-4 text-sm font-black uppercase tracking-[0.16em] text-zinc-950 shadow-[0_0_32px_rgba(110,231,183,0.22)] hover:bg-white disabled:cursor-not-allowed disabled:opacity-45"
             >
-              Save Team (บันทึกทีม)
+              {isSaving ? "Saving..." : "Save Team (บันทึกทีม)"}
             </button>
             <p className="mt-3 text-xs leading-5 text-zinc-500">
-              This sprint validates only and does not write to the database.
-              (สปรินต์นี้ตรวจความถูกต้องเท่านั้น ยังไม่เขียนฐานข้อมูล)
+              {isPreviewMode
+                ? "Preview mode validates only and does not write to the database."
+                : "Saved teams are submitted for the current open fantasy week."}
             </p>
+            </div>
           </section>
         </aside>
       </section>
@@ -738,7 +863,7 @@ export default function ArenaFantasyMyTeamPage() {
           onSelect={selectPlayer}
         />
       ) : null}
-    </main>
+    </ArenaShell>
   );
 }
 
@@ -758,8 +883,12 @@ function FootballPitch({
   onRemoveSlot: (slotId: string) => void;
 }) {
   return (
-    <section className="overflow-hidden border border-white/10 bg-zinc-950 shadow-[0_30px_90px_rgba(0,0,0,0.45)]">
-      <div className="flex flex-col gap-2 border-b border-white/10 p-5 sm:flex-row sm:items-center sm:justify-between">
+    <FantasyPitchV2
+      title={week.name}
+      subtitle="Tap a slot to select a player. (แตะช่องเพื่อเลือกผู้เล่น)"
+      status={lineupStatus}
+    >
+      <div className="hidden flex-col gap-2 border-b border-white/10 p-5 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-2xl font-black uppercase text-white">
             {week.name}
@@ -816,7 +945,7 @@ function FootballPitch({
           </div>
         </div>
       </div>
-    </section>
+    </FantasyPitchV2>
   );
 }
 
@@ -943,7 +1072,8 @@ function RulesPanel({
   ];
 
   return (
-    <section className="border border-white/10 bg-zinc-950 p-5">
+    <section className="relative overflow-hidden border border-white/10 bg-[#080d18] p-5 shadow-[0_30px_90px_rgba(0,0,0,0.35)]">
+      <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-red-400 via-yellow-200 to-emerald-300" />
       <h2 className="text-2xl font-black uppercase text-white">
         Rules (กติกา)
       </h2>
@@ -951,7 +1081,7 @@ function RulesPanel({
         {rows.map((row) => (
           <div
             key={row.label}
-            className="flex items-center justify-between gap-3 border-b border-white/10 pb-3 text-sm"
+            className="flex items-center justify-between gap-3 border-b border-white/10 bg-black/15 px-3 py-3 text-sm"
           >
             <span className="text-zinc-400">{row.label}</span>
             <strong className={ruleStateClass(row.ok)}>{row.value}</strong>
@@ -970,7 +1100,7 @@ function RulesPanel({
           return (
             <div
               key={key}
-              className="border border-white/10 bg-white/[0.03] p-3"
+              className="border border-white/10 bg-white/[0.04] p-3"
               style={style}
             >
               <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[var(--school-accent)]">
@@ -1009,9 +1139,9 @@ function PlayerSelector({
   onSelect: (player: PlayerOption) => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 bg-black/72 p-0 backdrop-blur-sm sm:p-5">
-      <div className="ml-auto flex h-full w-full max-w-2xl flex-col border-l border-white/10 bg-[#07100d] shadow-[0_0_80px_rgba(0,0,0,0.55)]">
-        <header className="border-b border-white/10 p-5">
+    <div className="fixed inset-0 z-50 bg-black/78 p-0 backdrop-blur-sm sm:p-5">
+      <div className="ml-auto flex h-full w-full max-w-2xl flex-col border-l border-emerald-300/20 bg-[#06110d] shadow-[0_0_100px_rgba(0,0,0,0.65)]">
+        <header className="border-b border-emerald-200/10 bg-black/25 p-5">
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="text-xs font-black uppercase tracking-[0.22em] text-emerald-300">
@@ -1060,8 +1190,8 @@ function PlayerSelector({
                   className={cx(
                     "border p-4 text-left transition",
                     availability.ok
-                      ? "border-white/10 bg-zinc-950 hover:border-emerald-300 hover:bg-emerald-300/10"
-                      : "cursor-not-allowed border-white/5 bg-zinc-950/45 opacity-45",
+                      ? "border-white/10 bg-[#080d18] hover:border-emerald-300 hover:bg-emerald-300/10"
+                      : "cursor-not-allowed border-white/5 bg-[#080d18]/45 opacity-45",
                   )}
                 >
                   <div className="grid grid-cols-[1fr_auto] gap-3">
