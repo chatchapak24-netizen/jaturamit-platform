@@ -1,119 +1,161 @@
 import Link from "next/link";
+import ArenaLineupStatusCard from "@/components/arena-v2/ArenaLineupStatusCard";
+import ArenaProgressJourney from "@/components/arena-v2/ArenaProgressJourney";
+import ArenaShell from "@/components/arena-v2/ArenaShell";
+import PlayerCard from "@/components/arena/PlayerCard";
 import { supabase } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
 
 type ArenaWeek = {
   id: string;
+  season_id: string;
   name: string;
   status: string;
   lineup_locks_at: string | null;
 };
 
+const topPlayers = [
+  { playerName: "Phoom", school: "DARUNA", position: "MF", rating: 92, stars: 5, rarity: "legend" },
+  { playerName: "Fluk", school: "BENJ", position: "FW", rating: 90, stars: 5, rarity: "epic" },
+  { playerName: "Nuttapong", school: "SARASIT", position: "DF", rating: 88, stars: 4, rarity: "rare" },
+  { playerName: "Korn", school: "PHOTHA", position: "FW", rating: 87, stars: 4, rarity: "elite" },
+];
+
+function StatTile({
+  label,
+  value,
+  tone = "text-white",
+}: {
+  label: string;
+  value: string;
+  tone?: string;
+}) {
+  return (
+    <div className="rounded-[12px] border border-white/10 bg-black/30 p-4">
+      <p className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-500">
+        {label}
+      </p>
+      <p className={`mt-2 text-2xl font-black ${tone}`}>{value}</p>
+    </div>
+  );
+}
+
 export default async function ArenaFantasyPage() {
   const { data: weeks, error } = await supabase
     .from("arena_weeks")
-    .select("id, name, status, lineup_locks_at")
+    .select("id, season_id, name, status, lineup_locks_at")
     .in("status", ["open", "locked", "scoring", "final"])
     .order("week_number", { ascending: false })
-    .limit(3);
+    .limit(1);
 
-  const visibleWeeks = (weeks || []) as ArenaWeek[];
+  const currentWeek = ((weeks || []) as ArenaWeek[])[0] || null;
+  const playerCountResult = currentWeek
+    ? await supabase
+        .from("season_players")
+        .select("id", { count: "exact", head: true })
+        .eq("season_id", currentWeek.season_id)
+        .eq("status", "active")
+    : { count: 0 };
+
+  const playerCount = playerCountResult.count || 72;
+  const matchdayLabel = currentWeek?.name || "MATCHDAY 1";
 
   return (
-    <main className="mx-auto max-w-7xl px-6 py-10">
-      <section className="mb-8 rounded-3xl border border-white/10 bg-gradient-to-br from-red-950/60 via-zinc-900 to-zinc-950 p-6 md:p-8">
-        <p className="text-sm font-semibold uppercase tracking-[0.3em] text-red-300">
-          Jaturamit Arena Fantasy (จตุรมิตร อารีนา แฟนตาซี)
-        </p>
-        <div className="mt-3 grid gap-6 lg:grid-cols-[1fr_320px] lg:items-end">
+    <ArenaShell active="fantasy" title="จัดทีมแฟนตาซี">
+      <section className="border-b border-white/10 bg-[#05100c] p-4 sm:p-6 lg:p-8">
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_300px] lg:items-end">
           <div>
-            <h1 className="text-4xl font-black">Pick Lineup (เลือกทีม)</h1>
-            <p className="mt-3 max-w-3xl text-zinc-300">
-              Build an 11-player Jaturamit lineup from real season players. Phase
-              1A uses the existing Arena weekly lineup foundation without coins,
-              budget, marketplace, or trading. (จัดทีมจตุรมิตร 11 คนจากนักเตะจริงของซีซั่น โดยเฟส 1A ยังไม่มีเหรียญ งบประมาณ ตลาด หรือการเทรด)
+            <p className="text-xs font-black uppercase tracking-[0.24em] text-emerald-300">
+              จัดทีมแฟนตาซี
             </p>
+            <h1 className="mt-3 text-4xl font-black uppercase leading-none text-white sm:text-6xl">
+              {matchdayLabel}
+            </h1>
+            <p className="mt-3 max-w-2xl text-sm leading-7 text-zinc-300">
+              เลือกนักเตะ 11 คน ส่งทีม แล้วรอคะแนนหลังการแข่งขัน
+            </p>
+            <div className="mt-6 grid gap-3 sm:grid-cols-3">
+              <StatTile
+                label="นักเตะที่เลือกได้"
+                value={`${playerCount} คน`}
+                tone="text-emerald-200"
+              />
+              <ArenaLineupStatusCard />
+              <StatTile
+                label="แมตช์เดย์"
+                value={currentWeek?.status || "open"}
+                tone="text-sky-200"
+              />
+            </div>
+            {error ? (
+              <p className="mt-4 rounded-[10px] border border-amber-300/30 bg-amber-300/10 p-3 text-sm text-amber-100">
+                ยังโหลดข้อมูลแมตช์เดย์ไม่ได้ แต่ยังเข้าไปดูหน้าจัดทีมได้
+              </p>
+            ) : null}
           </div>
-          <div className="flex flex-wrap gap-3 lg:justify-end">
+
+          <div className="rounded-[14px] border border-emerald-300/25 bg-[#07140f] p-4 shadow-[0_0_34px_rgba(52,211,153,0.12)]">
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-200">
+              ปุ่มหลัก
+            </p>
             <Link
               href="/arena/fantasy/my-team"
-              className="rounded-xl bg-red-600 px-4 py-3 text-sm font-black text-white hover:bg-red-500"
+              className="mt-4 block rounded-[10px] border border-emerald-200 bg-emerald-500 px-6 py-4 text-center text-sm font-black text-white shadow-[0_0_34px_rgba(52,211,153,0.30)] hover:bg-emerald-400"
             >
-              My Team (ทีมของฉัน)
+              จัดทีมของฉัน
             </Link>
-            <Link
-              href="/arena/fantasy/leaderboard"
-              className="rounded-xl border border-white/10 px-4 py-3 text-sm font-black text-zinc-100 hover:bg-white/10"
-            >
-              Leaderboard (ตารางอันดับ)
-            </Link>
+            <p className="mt-3 text-xs leading-5 text-zinc-400">
+              กดปุ่มนี้เพื่อเลือกผู้เล่นและส่งทีม
+            </p>
           </div>
         </div>
       </section>
 
-      {error ? (
-        <section className="rounded-2xl border border-amber-300/30 bg-amber-300/10 p-5 text-amber-100">
-          {error.message}
-        </section>
-      ) : (
-        <section className="grid gap-5 md:grid-cols-3">
-          <article className="rounded-2xl border border-white/10 bg-zinc-900 p-5">
-            <p className="text-xs font-black uppercase tracking-[0.24em] text-red-300">
-              Formation (แผนการเล่น)
-            </p>
-            <h2 className="mt-3 text-2xl font-black">1-4-4-2</h2>
-            <p className="mt-2 text-sm text-zinc-400">
-              GK 1, DF 4, MF 4, FW 2. (ผู้รักษาประตู 1, กองหลัง 4, กองกลาง 4, กองหน้า 2)
-            </p>
-          </article>
-          <article className="rounded-2xl border border-white/10 bg-zinc-900 p-5">
-            <p className="text-xs font-black uppercase tracking-[0.24em] text-red-300">
-              Rules (กติกา)
-            </p>
-            <h2 className="mt-3 text-2xl font-black">38 stars (38 ดาว)</h2>
-            <p className="mt-2 text-sm text-zinc-400">
-              Maximum 5 players from the same school/team. (เลือกผู้เล่นจากโรงเรียน/ทีมเดียวกันได้สูงสุด 5 คน)
-            </p>
-          </article>
-          <article className="rounded-2xl border border-white/10 bg-zinc-900 p-5">
-            <p className="text-xs font-black uppercase tracking-[0.24em] text-red-300">
-              Active Weeks (สัปดาห์ที่ใช้งาน)
-            </p>
-            <h2 className="mt-3 text-2xl font-black">{visibleWeeks.length}</h2>
-            <p className="mt-2 text-sm text-zinc-400">
-              Existing Arena weeks are reused as fantasy matchdays. (ใช้สัปดาห์อารีนาเดิมเป็นแมตช์เดย์แฟนตาซี)
-            </p>
-          </article>
-        </section>
-      )}
+      <ArenaProgressJourney currentStep={1} />
 
-      <section className="mt-8 rounded-2xl border border-white/10 bg-zinc-900 p-6">
-        <h2 className="text-2xl font-black">Matchdays (แมตช์เดย์)</h2>
-        <div className="mt-5 grid gap-3">
-          {visibleWeeks.map((week) => (
-            <div
-              key={week.id}
-              className="flex flex-col gap-2 rounded-xl border border-white/10 bg-zinc-950 p-4 sm:flex-row sm:items-center sm:justify-between"
-            >
-              <div>
-                <p className="font-black">{week.name}</p>
-                <p className="text-sm text-zinc-500">
-                  Lock (เวลาล็อก): {week.lineup_locks_at || "not set (ยังไม่ตั้งค่า)"}
-                </p>
-              </div>
-              <span className="w-fit rounded-full border border-red-300/30 px-3 py-1 text-xs font-black uppercase text-red-200">
-                {week.status}
-              </span>
-            </div>
-          ))}
-          {visibleWeeks.length === 0 && !error ? (
-            <p className="text-zinc-400">
-              No fantasy week is open yet. (ยังไม่มีสัปดาห์แฟนตาซีที่เปิดอยู่)
+      <section className="space-y-6 p-4 sm:p-6 lg:p-8">
+        <div className="rounded-[14px] border border-white/10 bg-[#070b12] p-4">
+          <p className="text-xs font-black uppercase tracking-[0.22em] text-yellow-200">
+            กติกาง่าย ๆ
+          </p>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <StatTile label="ผู้เล่น" value="11 คน" />
+            <StatTile label="ตำแหน่ง" value="GK 1" />
+            <StatTile label="กองหลัง" value="DF 4" />
+            <StatTile label="กองกลาง" value="MF 4" />
+            <StatTile label="กองหน้า" value="FW 2" />
+            <StatTile label="เพดานทีม" value="38 ดาว / โรงเรียนละไม่เกิน 5 คน" />
+          </div>
+        </div>
+
+        <div>
+          <div className="mb-4">
+            <p className="text-xs font-black uppercase tracking-[0.22em] text-yellow-200">
+              นักเตะแนะนำ
             </p>
-          ) : null}
+            <h2 className="mt-1 text-2xl font-black text-white">
+              ดูตัวอย่างก่อนจัดทีม
+            </h2>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {topPlayers.map((player) => (
+              <div key={player.playerName} className="mx-auto w-full max-w-[286px]">
+                <PlayerCard
+                  playerName={player.playerName}
+                  school={player.school}
+                  position={player.position}
+                  rating={player.rating}
+                  stars={player.stars}
+                  rarity={player.rarity}
+                  variant="compact"
+                  className="mx-auto"
+                />
+              </div>
+            ))}
+          </div>
         </div>
       </section>
-    </main>
+    </ArenaShell>
   );
 }

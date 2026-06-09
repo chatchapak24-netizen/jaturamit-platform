@@ -4,6 +4,7 @@ import type { CSSProperties } from "react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import PlayerCard from "@/components/arena/PlayerCard";
+import ArenaProgressJourney from "@/components/arena-v2/ArenaProgressJourney";
 import ArenaShell from "@/components/arena-v2/ArenaShell";
 import FantasyPitchV2 from "@/components/arena-v2/FantasyPitchV2";
 import { supabaseBrowser } from "@/lib/supabase-browser";
@@ -760,25 +761,26 @@ export default function ArenaFantasyMyTeamPage() {
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>
               <p className="text-xs font-black uppercase tracking-[0.28em] text-emerald-300">
-                Fantasy Pitch Builder (ตัวจัดทีมแฟนตาซี)
+                จัดทีมแฟนตาซี
               </p>
               <h1 className="mt-3 max-w-full break-words text-3xl font-black uppercase leading-tight sm:text-4xl md:text-6xl">
-                My Team (ทีมของฉัน)
+                ทีมของฉัน
               </h1>
               <p className="mt-4 max-w-3xl break-words text-sm leading-7 text-zinc-300 md:text-base">
-                Pick exactly 11 players in a 1-4-4-2 shape with no budget, max
-                38 stars, and max 5 players from the same school. (เลือกผู้เล่น 11 คนในระบบ 1-4-4-2 ไม่มีงบประมาณ จำกัดดาว 38 และโรงเรียนละไม่เกิน 5 คน)
+                เลือกนักเตะให้ครบ 11 คนตามแผน 1-4-4-2 แล้วกดบันทึกทีมเพื่อส่งทีมประจำสัปดาห์
               </p>
             </div>
             <Link
               href="/arena/fantasy"
               className="w-fit border border-white/15 bg-white/10 px-4 py-3 text-sm font-black uppercase tracking-[0.14em] text-zinc-100 hover:border-emerald-300 hover:bg-emerald-400/10"
             >
-              Back (กลับ)
+              กลับ
             </Link>
           </div>
         </div>
       </section>
+
+      <ArenaProgressJourney currentStep={lineupStatus === "submitted" ? 3 : 2} />
 
       <section className="mx-auto grid max-w-7xl gap-6 px-5 pb-16 md:px-8 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-12">
         <div className="space-y-5">
@@ -816,16 +818,16 @@ export default function ArenaFantasyMyTeamPage() {
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_82%_0%,rgba(34,197,94,0.18),transparent_34%)]" />
             <div className="relative">
             <p className="text-xs font-black uppercase tracking-[0.22em] text-zinc-500">
-              Week (สัปดาห์)
+              ภารกิจตอนนี้
             </p>
             <h2 className="mt-2 text-xl font-black text-white">
-              {week?.name || "No open week"}
+              {lineupStatus === "submitted" ? "ส่งทีมเรียบร้อย" : "ส่งทีมประจำสัปดาห์"}
             </h2>
             <p className="mt-2 text-sm text-zinc-500">
-              Status (สถานะ): {week?.status || "-"} / Lineup: {lineupStatus}
+              แมตช์เดย์: {week?.name || "-"} / สถานะทีม: {lineupStatus}
             </p>
             <p className="mt-2 text-sm font-bold text-emerald-200">
-              Player pool: {players.length} players
+              นักเตะที่เลือกได้: {players.length} คน
             </p>
             {isPreviewMode ? (
               <p className="mt-2 border border-amber-300/30 bg-amber-300/10 px-3 py-2 text-xs font-black uppercase tracking-[0.14em] text-amber-100">
@@ -838,12 +840,12 @@ export default function ArenaFantasyMyTeamPage() {
               disabled={!week || lineupStatus === "locked" || isSaving}
               className="mt-5 w-full bg-emerald-300 px-5 py-4 text-sm font-black uppercase tracking-[0.16em] text-zinc-950 shadow-[0_0_32px_rgba(110,231,183,0.22)] hover:bg-white disabled:cursor-not-allowed disabled:opacity-45"
             >
-              {isSaving ? "Saving..." : "Save Team (บันทึกทีม)"}
+              {isSaving ? "กำลังบันทึก..." : "บันทึกและส่งทีม"}
             </button>
             <p className="mt-3 text-xs leading-5 text-zinc-500">
               {isPreviewMode
-                ? "Preview mode validates only and does not write to the database."
-                : "Saved teams are submitted for the current open fantasy week."}
+                ? "โหมด preview ตรวจทีมเท่านั้น ไม่เขียนข้อมูลลงฐานข้อมูล"
+                : "เมื่อกดบันทึก ทีมนี้จะถูกส่งสำหรับแมตช์เดย์ที่เปิดอยู่"}
             </p>
             </div>
           </section>

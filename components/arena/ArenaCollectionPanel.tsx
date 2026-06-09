@@ -1,8 +1,10 @@
 "use client";
 
 import type { CSSProperties } from "react";
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import PlayerCard from "@/components/arena/PlayerCard";
+import CollectionBinderV2 from "@/components/arena-v2/CollectionBinderV2";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import {
   ARENA_RARITIES,
@@ -332,6 +334,48 @@ function BinderEmptyState() {
   );
 }
 
+function CollectionUnavailableState({
+  onRetry,
+}: {
+  onRetry?: () => void;
+}) {
+  return (
+    <section className="mx-auto max-w-5xl px-4 py-10 sm:px-6 lg:px-8">
+      <div className="relative overflow-hidden rounded-[16px] border border-yellow-300/25 bg-[#080b13] p-6 text-center shadow-[0_0_48px_rgba(250,204,21,0.10)] sm:p-8">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(250,204,21,0.18),transparent_42%)]" />
+        <div className="relative mx-auto max-w-2xl">
+          <p className="text-xs font-black uppercase tracking-[0.24em] text-yellow-200">
+            คลังการ์ด
+          </p>
+          <h2 className="mt-4 text-3xl font-black uppercase text-white sm:text-4xl">
+            คลังการ์ดยังไม่เปิดใช้งาน
+          </h2>
+          <p className="mt-4 text-sm leading-7 text-zinc-400">
+            ตอนนี้สามารถเล่นแฟนตาซีได้แล้ว เริ่มจากจัดทีมประจำสัปดาห์ก่อน
+          </p>
+          <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row">
+            <Link
+              href="/arena/fantasy"
+              className="rounded-[10px] border border-emerald-200 bg-emerald-500 px-6 py-4 text-sm font-black uppercase tracking-[0.16em] text-white hover:bg-emerald-400"
+            >
+              ไปจัดทีมแฟนตาซี
+            </Link>
+            {onRetry ? (
+              <button
+                type="button"
+                onClick={onRetry}
+                className="rounded-[10px] border border-white/10 px-6 py-4 text-sm font-black uppercase tracking-[0.16em] text-zinc-300 hover:bg-white/10"
+              >
+                Try again
+              </button>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default function ArenaCollectionPanel() {
   const [state, setState] = useState<LoadState>("loading");
   const [cards, setCards] = useState<ArenaCollectionCard[]>([]);
@@ -404,6 +448,18 @@ export default function ArenaCollectionPanel() {
   }
 
   if (state === "unauthenticated") {
+    return <CollectionUnavailableState />;
+  }
+
+  if (state === "error") {
+    return <CollectionUnavailableState />;
+  }
+
+  if (cards.length === 0) {
+    return <CollectionUnavailableState />;
+  }
+
+  if (false) {
     return (
       <section className="mx-auto max-w-7xl px-5 pb-16 md:px-8 lg:px-12">
         <div className="border border-white/10 bg-zinc-950 p-8">
@@ -422,7 +478,7 @@ export default function ArenaCollectionPanel() {
     );
   }
 
-  if (state === "error") {
+  if (false) {
     return (
       <section className="mx-auto max-w-7xl px-5 pb-16 md:px-8 lg:px-12">
         <div className="border border-amber-300/30 bg-amber-300/10 p-8 text-amber-100">
@@ -440,7 +496,12 @@ export default function ArenaCollectionPanel() {
   }
 
   return (
-    <section className="mx-auto max-w-7xl px-5 pb-16 md:px-8 lg:px-12">
+    <CollectionBinderV2
+      title="Card Collection (คลังการ์ด)"
+      subtitle="Owned cards, locked card slots, rarity filters, and school sets in a football binder view."
+      owned={cards.length}
+      locked={LOCKED_SLOTS.length}
+    >
       <div className="space-y-8">
         <SchoolSetProgress cards={cards} />
         <BinderControls />
@@ -480,6 +541,6 @@ export default function ArenaCollectionPanel() {
           )}
         </div>
       </div>
-    </section>
+    </CollectionBinderV2>
   );
 }
