@@ -1,5 +1,6 @@
 import type { CSSProperties } from "react";
 import Link from "next/link";
+import ArenaAuthActions from "@/components/arena/ArenaAuthActions";
 import ArenaLineupStatusCard from "@/components/arena-v2/ArenaLineupStatusCard";
 import ArenaProgressJourney from "@/components/arena-v2/ArenaProgressJourney";
 import ArenaShell from "@/components/arena-v2/ArenaShell";
@@ -116,6 +117,7 @@ export default function ArenaPage() {
               ดูคลังการ์ด
             </Link>
           </div>
+          <ArenaAuthActions className="mt-3" nextPath="/arena/fantasy/my-team" />
         </div>
 
         <div className="mx-auto w-full max-w-[300px] pb-4 lg:pb-0">

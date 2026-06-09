@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
+import ArenaAuthActions from "@/components/arena/ArenaAuthActions";
 
 type ArenaShellProps = {
   title?: string;
@@ -66,6 +67,7 @@ export default function ArenaShell({
 
               <div className="flex items-center gap-2">
                 <span className="hidden h-2 w-2 rounded-full bg-red-400 shadow-[0_0_18px_rgba(248,113,113,0.95)] sm:block" />
+                <ArenaAuthActions variant="nav" />
                 <span className="grid h-9 w-9 place-items-center rounded-full border border-emerald-300/30 bg-emerald-300/10 text-xs font-black text-emerald-100">
                   JP
                 </span>
@@ -87,6 +89,7 @@ export default function ArenaShell({
                 </Link>
               ))}
             </div>
+            <ArenaAuthActions className="mt-3 md:hidden" variant="mobile" />
           </header>
 
           <div aria-label={title}>{children}</div>

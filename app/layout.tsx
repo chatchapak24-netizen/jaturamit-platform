@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import ArenaAuthActions from "@/components/arena/ArenaAuthActions";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -64,6 +65,7 @@ export default function RootLayout({
                 >
                   หลังบ้าน
                 </Link>
+                <ArenaAuthActions variant="main-nav" />
               </nav>
             </div>
           </header>

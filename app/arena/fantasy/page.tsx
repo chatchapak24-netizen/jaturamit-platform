@@ -1,4 +1,5 @@
 import Link from "next/link";
+import ArenaAuthActions from "@/components/arena/ArenaAuthActions";
 import ArenaLineupStatusCard from "@/components/arena-v2/ArenaLineupStatusCard";
 import ArenaProgressJourney from "@/components/arena-v2/ArenaProgressJourney";
 import ArenaShell from "@/components/arena-v2/ArenaShell";
@@ -108,6 +109,7 @@ export default async function ArenaFantasyPage() {
             <p className="mt-3 text-xs leading-5 text-zinc-400">
               กดปุ่มนี้เพื่อเลือกผู้เล่นและส่งทีม
             </p>
+            <ArenaAuthActions className="mt-4" nextPath="/arena/fantasy/my-team" />
           </div>
         </div>
       </section>
